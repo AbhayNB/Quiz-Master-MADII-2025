@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-white p-5">
+    <div class="max-w-4xl mx-auto border rounded-lg shadow-lg">
+        <header class="flex justify-between items-center bg-blue-100 p-4 rounded-t-lg">
+            <nav>
+                <ul class="flex space-x-4 text-sm text-green-600">
+                    <li><a href="#" class="hover:underline">Home</a></li>
+                    <li><a href="#" class="hover:underline">Scores</a></li>
+                    <li><a href="#" class="hover:underline">Summary</a></li>
+                    <li><a href="#" class="hover:underline">Logout</a></li>
+                </ul>
+            </nav>
+            <div class="flex items-center space-x-4">
+                <input type="text" placeholder="Search" class="border rounded p-1 text-sm">
+                <span class="text-blue-600">Welcome User</span>
+            </div>
+        </header>
+        <main class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <canvas id="barChart"></canvas>
+                    <h2 class="text-center text-gray-600 mt-2">Subject wise no. of quizzes</h2>
+                </div>
+                <div>
+                    <canvas id="pieChart"></canvas>
+                    <h2 class="text-center text-gray-600 mt-2">Month wise no. of quizzes attempted</h2>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const barCtx = document.getElementById('barChart').getContext('2d');
+        const pieCtx = document.getElementById('pieChart').getContext('2d');
+
+        new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Maths', 'Physics', 'Chemistry'],
+                datasets: [{
+                    label: 'No. of Quizzes',
+                    data: [12, 19, 10],
+                    backgroundColor: ['#93c5fd', '#86efac', '#fda4af'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['01', '02', '03'],
+                datasets: [{
+                    data: [10, 15, 5],
+                    backgroundColor: ['#fda4af', '#fed7aa', '#bbf7d0'],
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

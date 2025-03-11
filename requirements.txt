@@ -1,0 +1,6 @@
+Flask==2.2.3
+Flask-SQLAlchemy==2.5.1
+Werkzeug==2.2.3
+SQLAlchemy==1.4.39
+pip install graphql-core==2.2.1
+pip install graphene==2.1.8
