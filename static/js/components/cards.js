@@ -72,7 +72,11 @@ export const QuizCard = {
     quiz: {
       type: Object,
       required: true
-    }
+    },
+    id: {
+      type: Number,
+      required: true
+    },
   },
   methods: {
     getDifficultyBadgeClass(difficulty) {
@@ -102,7 +106,7 @@ export const QuizCard = {
             <i class="bi bi-clock-fill me-1"></i> {{ quiz.duration }}
           </span>
         </div>
-        <button class="btn btn-primary w-100" @click="$router.push('/quiz')">
+        <button class="btn btn-primary w-100" @click="$router.push('/quiz/' + id)">
           <i class="bi bi-play-fill"></i> Start Quiz
         </button>
       </div>

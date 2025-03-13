@@ -9,72 +9,6 @@ export const Home = {
     },
     data() {
       return {
-        quizSubjects: [
-          { id: 1, name: 'Mathematics', description: 'Test your math skills from basic arithmetic to advanced calculus' },
-          { id: 2, name: 'Science', description: 'Explore various science topics including Physics, Chemistry and Biology' },
-          { id: 3, name: 'Computer Science', description: 'Programming concepts, algorithms, and technology fundamentals' },
-          { id: 4, name: 'General Knowledge', description: 'Wide range of topics from current affairs to history' },
-          { id: 5, name: 'English', description: 'Grammar, vocabulary, and language comprehension' }
-        ],
-        chapters: {
-          'Mathematics': ['Arithmetic', 'Algebra', 'Geometry', 'Calculus', 'Statistics'],
-          'Science': ['Physics', 'Chemistry', 'Biology', 'Earth Science', 'Astronomy'],
-          'Computer Science': ['Programming Basics', 'Data Structures', 'Algorithms', 'Web Development', 'Database'],
-          'General Knowledge': ['History', 'Geography', 'Current Affairs', 'Politics', 'Culture'],
-          'English': ['Grammar', 'Vocabulary', 'Literature', 'Writing', 'Comprehension']
-        },
-        availableQuizzes: [
-          {
-            id: 1,
-            name: 'Basic Mathematics',
-            subject: 'Mathematics',
-            chapter: 'Arithmetic',
-            questions: 20,
-            duration: '30 mins',
-            difficulty: 'Easy',
-            description: 'Cover basic arithmetic, fractions, and percentages'
-          },
-          {
-            id: 2,
-            name: 'Advanced Physics',
-            subject: 'Science',
-            chapter: 'Physics',
-            questions: 25,
-            duration: '45 mins',
-            difficulty: 'Hard',
-            description: 'Mechanics, thermodynamics, and modern physics'
-          },
-          {
-            id: 3,
-            name: 'Programming Basics',
-            subject: 'Computer Science',
-            chapter: 'Programming Basics',
-            questions: 30,
-            duration: '40 mins',
-            difficulty: 'Medium',
-            description: 'Basic programming concepts and problem solving'
-          },
-          {
-            id: 4,
-            name: 'World History',
-            subject: 'General Knowledge',
-            chapter: 'History',
-            questions: 20,
-            duration: '30 mins',
-            difficulty: 'Medium',
-            description: 'Major historical events and civilizations'
-          },
-          {
-            id: 5,
-            name: 'Grammar Master',
-            subject: 'English',
-            chapter: 'Grammar',
-            questions: 25,
-            duration: '35 mins',
-            difficulty: 'Medium',
-            description: 'English grammar rules and usage'
-          }
-        ],
         selectedSubject: 'All',
         selectedChapter: 'All',
         searchQuery: '',
@@ -82,38 +16,73 @@ export const Home = {
       };
     },
     computed: {
-      active_users() {
-        return store.state.activeUsers;  // Access state directly with default value
+      subjects() {
+        return this.$store.getters.subjects;
+      },
+      chapters() {
+        if (this.selectedSubject === 'All') return [];
+        const subject = this.subjects.find(s => s.name === this.selectedSubject);
+        return subject ? this.$store.getters.chapters(subject.id) : [];
       },
       availableChapters() {
         if (this.selectedSubject === 'All') {
           return ['All'];
         }
-        return ['All', ...this.chapters[this.selectedSubject] || []];
+        return ['All', ...this.chapters.map(c => c.name)];
+      },
+      quizzes() {
+        let allQuizzes = [];
+        this.subjects.forEach(subject => {
+          const chapters = this.$store.getters.chapters(subject.id) || [];
+          chapters.forEach(chapter => {
+            const chapterQuizzes = this.$store.getters.quizzes(chapter.id) || [];
+            allQuizzes = [...allQuizzes, ...chapterQuizzes.map(quiz => ({
+              ...quiz,
+              subject: subject.name,
+              chapter: chapter.name
+            }))];
+          });
+        });
+        return allQuizzes;
       },
       filteredQuizzes() {
-        return this.availableQuizzes.filter(quiz => {
+        return this.quizzes.filter(quiz => {
           const matchesSubject = this.selectedSubject === 'All' || quiz.subject === this.selectedSubject;
           const matchesChapter = this.selectedChapter === 'All' || quiz.chapter === this.selectedChapter;
           const matchesSearch = quiz.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                               quiz.description.toLowerCase().includes(this.searchQuery.toLowerCase());
           return matchesSubject && matchesChapter && matchesSearch;
         });
+      },
+      active_users() {
+        return this.$store.getters.activeUsers;
       }
     },
-    created() {
-      store.dispatch('activeUsers');  // Fetch active users when component is created
-    },
     methods: {
+      async loadData() {
+        try {
+          await this.$store.dispatch('fetchSubjects');
+          for (const subject of this.subjects) {
+            await this.$store.dispatch('fetchChapters', subject.id);
+            const chapters = this.$store.getters.chapters(subject.id);
+            for (const chapter of chapters) {
+              await this.$store.dispatch('fetchQuizzes', chapter.id);
+            }
+          }
+          await this.$store.dispatch('fetchActiveUsers');
+        } catch (error) {
+          console.error('Error loading data:', error);
+        }
+      },
       getDifficultyBadgeClass(difficulty) {
         return {
-          'bg-success': difficulty === 'Easy',
-          'bg-warning': difficulty === 'Medium',
-          'bg-danger': difficulty === 'Hard'
+          'bg-success': difficulty.toLowerCase() === 'easy',
+          'bg-warning': difficulty.toLowerCase() === 'medium',
+          'bg-danger': difficulty.toLowerCase() === 'hard'
         };
       },
       startQuiz(quizId) {
-        this.$router.push('/quiz');
+        this.$router.push(`/quiz/${quizId}`);
       },
       toggleSubscription(subjectId) {
         const index = this.subscribedSubjects.indexOf(subjectId);
@@ -127,6 +96,9 @@ export const Home = {
       isSubscribed(subjectId) {
         return this.subscribedSubjects.includes(subjectId);
       }
+    },
+    created() {
+      this.loadData();
     },
     template: `
       <div>
@@ -155,7 +127,7 @@ export const Home = {
               <stats-card 
                 icon="bi-journal-text"
                 title="Subjects"
-                :value="quizSubjects.length"
+                :value="subjects.length"
                 bg-color="bg-primary"
                 text-color="text-white"/>
             </div>
@@ -163,7 +135,7 @@ export const Home = {
               <stats-card 
                 icon="bi-pencil-square"
                 title="Available Quizzes"
-                :value="availableQuizzes.length"
+                :value="quizzes.length"
                 bg-color="bg-success"
                 text-color="text-white"/>
             </div>
@@ -192,7 +164,7 @@ export const Home = {
                 <div class="col-md-3">
                   <select class="form-select" v-model="selectedSubject">
                     <option value="All">All Subjects</option>
-                    <option v-for="subject in quizSubjects" :key="subject.id" :value="subject.name">
+                    <option v-for="subject in subjects" :key="subject.id" :value="subject.name">
                       {{ subject.name }}
                     </option>
                   </select>
@@ -218,7 +190,7 @@ export const Home = {
           <!-- Quiz Subjects -->
           <h3 class="mb-3">Quiz Subjects</h3>
           <div class="row mb-4">
-            <div class="col-md-4 mb-3" v-for="subject in quizSubjects" :key="subject.id">
+            <div class="col-md-4 mb-3" v-for="subject in subjects" :key="subject.id">
               <subject-card 
                 :subject="subject"
                 :is-subscribed="isSubscribed(subject.id)"
@@ -230,11 +202,10 @@ export const Home = {
           <h3 class="mb-3">Featured Quizzes</h3>
           <div class="row">
             <div class="col-md-4 mb-4" v-for="quiz in filteredQuizzes" :key="quiz.id">
-              <quiz-card :quiz="quiz"/>
+              <quiz-card :quiz="quiz" :id="quiz.id"/>
             </div>
           </div>
         </div>
       </div>
     `
   };
-  

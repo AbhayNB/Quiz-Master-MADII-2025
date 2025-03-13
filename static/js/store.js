@@ -1,25 +1,20 @@
+import { api } from './services/api.js';
+
 // Vuex Store
 export const store = Vuex.createStore({
     state() {
         return {
-            logged: !!localStorage.getItem('access_token'),
-            role: localStorage.getItem('role'),
-            email: localStorage.getItem('email'),
-            username: localStorage.getItem('username'),
-            access_token: localStorage.getItem('access_token'),
-            uid: localStorage.getItem('id'),
-            activeUsers: 0,
             subjects: [],
-            chapters: {},
-            quizzes: {},
-        };
+            chapters: {},  // Organized by subjectId
+            quizzes: {},  // Organized by chapterId
+            questions: {}, // Organized by quizId
+            activeUsers: 0,
+            logged: false
+        }
     },
     mutations: {
         setChapters(state, { subjectId, chapters }) {
-            state.chapters = {
-                ...state.chapters,
-                [subjectId]: chapters
-            };
+            state.chapters[subjectId] = chapters;
         },
         addChapter(state, { subjectId, chapter }) {
             if (!state.chapters[subjectId]) {
@@ -28,46 +23,39 @@ export const store = Vuex.createStore({
             state.chapters[subjectId].push(chapter);
         },
         updateChapter(state, { subjectId, chapter }) {
-            const chapters = state.chapters[subjectId];
-            const index = chapters.findIndex(c => c.id === chapter.id);
+            const index = state.chapters[subjectId].findIndex(c => c.id === chapter.id);
             if (index !== -1) {
-                chapters[index] = chapter;
+                state.chapters[subjectId].splice(index, 1, chapter);
             }
         },
         deleteChapter(state, { subjectId, chapterId }) {
-            const chapters = state.chapters[subjectId];
-            if (chapters) {
-                state.chapters[subjectId] = chapters.filter(c => c.id !== chapterId);
+            const index = state.chapters[subjectId].findIndex(c => c.id === chapterId);
+            if (index !== -1) {
+                state.chapters[subjectId].splice(index, 1);
             }
+            delete state.quizzes[chapterId];
         },
         setSubjects(state, subjects) {
-            console.log('Setting Subjects:', subjects['subjects']);
-            state.subjects = Array.isArray(subjects['subjects']) ? subjects : []; 
+            state.subjects = subjects;
         },
-        addSubject() {
-            this.dispatch('subjects');
+        addSubject(state, subject) {
+            state.subjects.push(subject);
         },
         updateSubject(state, subject) {
             const index = state.subjects.findIndex(s => s.id === subject.id);
             if (index !== -1) {
-                state.subjects[index] = { ...state.subjects[index], ...subject };
+                state.subjects.splice(index, 1, subject);
             }
         },
         deleteSubject(state, subjectId) {
-            state.subjects['subjects'] = state.subjects['subjects'].filter(s => s.id !== subjectId);
+            const index = state.subjects.findIndex(s => s.id === subjectId);
+            if (index !== -1) {
+                state.subjects.splice(index, 1);
+            }
             delete state.chapters[subjectId];
         },
-        setActiveUsers(state, activeUsers) {
-            state.activeUsers = activeUsers || 0; 
-        },
-        setLogged(state, logged) {
-            state.logged = logged;
-        },
         setQuizzes(state, { chapterId, quizzes }) {
-            state.quizzes = {
-                ...state.quizzes,
-                [chapterId]: quizzes
-            };
+            state.quizzes[chapterId] = quizzes;
         },
         addQuiz(state, { chapterId, quiz }) {
             if (!state.quizzes[chapterId]) {
@@ -76,125 +64,282 @@ export const store = Vuex.createStore({
             state.quizzes[chapterId].push(quiz);
         },
         updateQuiz(state, { chapterId, quiz }) {
-            const quizzes = state.quizzes[chapterId];
-            if (quizzes) {
-                const index = quizzes.findIndex(q => q.id === quiz.id);
-                if (index !== -1) {
-                    quizzes[index] = quiz;
-                }
+            const index = state.quizzes[chapterId].findIndex(q => q.id === quiz.id);
+            if (index !== -1) {
+                state.quizzes[chapterId].splice(index, 1, quiz);
             }
         },
         deleteQuiz(state, { chapterId, quizId }) {
-            const quizzes = state.quizzes[chapterId];
-            if (quizzes) {
-                state.quizzes[chapterId] = quizzes.filter(q => q.id !== quizId);
+            const index = state.quizzes[chapterId].findIndex(q => q.id === quizId);
+            if (index !== -1) {
+                state.quizzes[chapterId].splice(index, 1);
             }
+            delete state.questions[quizId];
+        },
+        setQuestions(state, { quizId, questions }) {
+            state.questions[quizId] = questions;
+        },
+        addQuestion(state, { quizId, question }) {
+            if (!state.questions[quizId]) {
+                state.questions[quizId] = [];
+            }
+            state.questions[quizId].push(question);
+        },
+        updateQuestion(state, { quizId, question }) {
+            const index = state.questions[quizId].findIndex(q => q.id === question.id);
+            if (index !== -1) {
+                state.questions[quizId].splice(index, 1, question);
+            }
+        },
+        deleteQuestion(state, { quizId, questionId }) {
+            const index = state.questions[quizId].findIndex(q => q.id === questionId);
+            if (index !== -1) {
+                state.questions[quizId].splice(index, 1);
+            }
+        },
+        setActiveUsers(state, count) {
+            state.activeUsers = count;
+        },
+        setLogged(state, status) {
+            state.logged = status;
         }
     },
     actions: {
-        async chapters({ commit }, subjectId) {
+        // Subject actions
+        async fetchSubjects({ commit }) {
             try {
-                const response = await fetch(`${window.API_URL}/chapters/${subjectId}`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch chapters');
-                }
-                const data = await response.json();
-                commit('setChapters', { subjectId, chapters: data.chapters });
-                return data.chapters;
-            } catch (error) {
-                console.error('Error fetching chapters:', error);
-                commit('setChapters', { subjectId, chapters: [] });
-                return [];
-            }
-        },
-        async activeUsers({ commit }) {
-            try {
-                const response = await fetch(`${window.API_URL}/activeusers`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch active users');
-                }
-    
-                const data = await response.json();
-                console.log('Active users:', data.active_users);
-                commit('setActiveUsers', data.active_users || 0);
-            }
-            catch (error) {
-                console.error('Error fetching active users:', error);
-                commit('setActiveUsers', 0);
-            }
-        },
-        async subjects({ commit }) {
-            try {
-                const response = await fetch(`${window.API_URL}/subjects`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch subjects');
-                }
-                const data = await response.json();
-                console.log('Fetching Subjects:', data);
-                commit('setSubjects', data);
+                const data = await api.subject.getAll();
+                commit('setSubjects', data.subjects);
             } catch (error) {
                 console.error('Error fetching subjects:', error);
-                commit('setSubjects', []);
+                throw error;
             }
         },
-        async quizzes({ commit }, chapterId) {
+        async createSubject({ commit }, subject) {
             try {
-                const response = await fetch(`${window.API_URL}/quizzes/${chapterId}`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch quizzes');
-                }
-                const data = await response.json();
+                const data = await api.subject.create(subject);
+                commit('addSubject', data.subject);
+                return data.subject;
+            } catch (error) {
+                console.error('Error creating subject:', error);
+                throw error;
+            }
+        },
+        async updateSubject({ commit }, { id, subject }) {
+            try {
+                const data = await api.subject.update(id, subject);
+                commit('updateSubject', data.subject);
+                return data.subject;
+            } catch (error) {
+                console.error('Error updating subject:', error);
+                throw error;
+            }
+        },
+        async deleteSubject({ commit }, id) {
+            try {
+                await api.subject.delete(id);
+                commit('deleteSubject', id);
+            } catch (error) {
+                console.error('Error deleting subject:', error);
+                throw error;
+            }
+        },
+
+        // Chapter actions
+        async fetchChapters({ commit }, subjectId) {
+            try {
+                const data = await api.chapter.getAll(subjectId);
+                commit('setChapters', { subjectId, chapters: data.chapters });
+            } catch (error) {
+                console.error('Error fetching chapters:', error);
+                throw error;
+            }
+        },
+        async createChapter({ commit }, chapter) {
+            try {
+                const data = await api.chapter.create(chapter);
+                commit('addChapter', { 
+                    subjectId: chapter.subject_id, 
+                    chapter: data.chapter 
+                });
+                return data.chapter;
+            } catch (error) {
+                console.error('Error creating chapter:', error);
+                throw error;
+            }
+        },
+        async updateChapter({ commit }, { id, chapter, subjectId }) {
+            try {
+                const data = await api.chapter.update(id, chapter);
+                commit('updateChapter', { 
+                    subjectId, 
+                    chapter: data.chapter 
+                });
+                return data.chapter;
+            } catch (error) {
+                console.error('Error updating chapter:', error);
+                throw error;
+            }
+        },
+        async deleteChapter({ commit }, { id, subjectId }) {
+            try {
+                await api.chapter.delete(id);
+                commit('deleteChapter', { subjectId, chapterId: id });
+            } catch (error) {
+                console.error('Error deleting chapter:', error);
+                throw error;
+            }
+        },
+
+        // Quiz actions
+        async fetchQuizzes({ commit }, chapterId) {
+            try {
+                const data = await api.quiz.getAll(chapterId);
                 commit('setQuizzes', { chapterId, quizzes: data.quizzes });
-                return data.quizzes;
             } catch (error) {
                 console.error('Error fetching quizzes:', error);
-                commit('setQuizzes', { chapterId, quizzes: [] });
-                return [];
+                throw error;
+            }
+        },
+        async fetchQuiz({ commit }, id) {
+            try {
+                const data = await api.quiz.getOne(id);
+                console.log(data);
+                return data;
+
+            } catch (error) {
+                console.error('Error fetching quiz:', error);
+                throw error;
+            }
+        },
+        async createQuiz({ commit }, quiz) {
+            try {
+                const data = await api.quiz.create(quiz);
+                commit('addQuiz', { 
+                    chapterId: quiz.chapter_id, 
+                    quiz: data.quiz 
+                });
+                return data.quiz;
+            } catch (error) {
+                console.error('Error creating quiz:', error);
+                throw error;
+            }
+        },
+        async updateQuiz({ commit }, { id, quiz, chapterId }) {
+            try {
+                const data = await api.quiz.update(id, quiz);
+                commit('updateQuiz', { 
+                    chapterId, 
+                    quiz: data.quiz 
+                });
+                return data.quiz;
+            } catch (error) {
+                console.error('Error updating quiz:', error);
+                throw error;
+            }
+        },
+        async deleteQuiz({ commit }, { id, chapterId }) {
+            try {
+                await api.quiz.delete(id);
+                commit('deleteQuiz', { chapterId, quizId: id });
+            } catch (error) {
+                console.error('Error deleting quiz:', error);
+                throw error;
+            }
+        },
+
+        // Question actions
+        async fetchQuestions({ commit }, quizId) {
+            try {
+                const data = await api.question.getAll(quizId);
+                commit('setQuestions', { quizId, questions: data.questions });
+            } catch (error) {
+                console.error('Error fetching questions:', error);
+                throw error;
+            }
+        },
+        async createQuestion({ commit }, { quizId, question }) {
+            try {
+                const data = await api.question.create(quizId, question);
+                commit('addQuestion', { 
+                    quizId, 
+                    question: data.question 
+                });
+                return data.question;
+            } catch (error) {
+                console.error('Error creating question:', error);
+                throw error;
+            }
+        },
+        async updateQuestion({ commit }, { id, question, quizId }) {
+            try {
+                const data = await api.question.update(id, question);
+                commit('updateQuestion', { 
+                    quizId, 
+                    question: data.question 
+                });
+                return data.question;
+            } catch (error) {
+                console.error('Error updating question:', error);
+                throw error;
+            }
+        },
+        async deleteQuestion({ commit }, { id, quizId }) {
+            try {
+                await api.question.delete(id);
+                commit('deleteQuestion', { quizId, questionId: id });
+            } catch (error) {
+                console.error('Error deleting question:', error);
+                throw error;
+            }
+        },
+
+        // Quiz Progress actions
+        async submitQuiz({ commit }, submission) {
+            try {
+                const response = await api.quiz.submit(submission);
+                return response;
+            } catch (error) {
+                console.error('Error submitting quiz:', error);
+                throw error;
+            }
+        },
+        async fetchQuizHistory({ commit }) {
+            try {
+                const response = await api.quiz.getHistory();
+                return response;
+            } catch (error) {
+                console.error('Error fetching quiz history:', error);
+                throw error;
+            }
+        },
+        async fetchUserSummary({ commit }) {
+            try {
+                const response = await api.user.getSummary();
+                return response;
+            } catch (error) {
+                console.error('Error fetching user summary:', error);
+                throw error;
+            }
+        },
+
+        // User actions
+        async fetchActiveUsers({ commit }) {
+            try {
+                const data = await api.auth.getActiveUsers();
+                commit('setActiveUsers', data.active_users);
+            } catch (error) {
+                console.error('Error fetching active users:', error);
+                throw error;
             }
         }
     },
     getters: {
-        getChapters: (state) => (subjectId) => {
-            return state.chapters[subjectId] || [];
-        },
-        subjects(state) {
-            console.log('getting subject:',state.subjects)
-            return state.subjects;
-        },
-        logged(state) {
-            return state.logged;
-        },
-        active_users(state) {
-            return state.activeUsers;
-        },
-        isLoggedIn(state) {
-            return !!localStorage.getItem('access_token');
-        },
-        role(state) {
-            return state.role;
-        },
-        username(state){
-            return state.username
-        },
-        departments(state) {
-            return state.departments;
-        },
-        finances(state) {
-            return state.finances;
-        },
-        applications(state) {
-            return state.applications;
-        },
-        getChapter: (state) => (chapterId) => {
-            // Search through all subjects' chapters to find the one with matching ID
-            for (const subjectChapters of Object.values(state.chapters)) {
-                const chapter = subjectChapters.find(c => c.id === Number(chapterId));
-                if (chapter) return chapter;
-            }
-            return null;
-        },
-        getQuizzes: (state) => (chapterId) => {
-            return state.quizzes[chapterId] || [];
-        }
+        subjects: state => state.subjects,
+        chapters: state => subjectId => state.chapters[subjectId] || [],
+        quizzes: state => chapterId => state.quizzes[chapterId] || [],
+        questions: state => quizId => state.questions[quizId] || [],
+        activeUsers: state => state.activeUsers,
+        logged: state => state.logged
     }
 });

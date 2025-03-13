@@ -1,37 +1,30 @@
 export const ScorePage = {
     data() {
       return {
-        quizHistory: [
-          { id: 1, name: 'Algebra Basics', subject: 'Math', questions: 20, score: 92, date: '2023-06-15', status: 'Passed', timeSpent: '25:30' },
-          { id: 2, name: 'Chemical Reactions', subject: 'Science', questions: 15, score: 78, date: '2023-06-14', status: 'Passed', timeSpent: '18:45' },
-          { id: 3, name: 'World War II', subject: 'History', questions: 25, score: 65, date: '2023-06-13', status: 'Failed', timeSpent: '28:15' },
-          { id: 4, name: 'Programming Basics', subject: 'Computer Science', questions: 30, score: 88, date: '2023-06-12', status: 'Passed', timeSpent: '27:50' },
-          { id: 5, name: 'Grammar Rules', subject: 'English', questions: 20, score: 82, date: '2023-06-11', status: 'Passed', timeSpent: '22:10' }
-        ],
-        filterSubject: 'All',
-        filterStatus: 'All',
+        loading: false,
+        error: null,
+        sortField: 'date',
+        sortOrder: 'desc',
         searchQuery: '',
-        sortBy: 'date',
-        sortOrder: 'desc'
+        selectedSubject: 'All',
+        quizHistory: []
       };
     },
     computed: {
       subjects() {
-        const subjects = new Set(this.quizHistory.map(quiz => quiz.subject));
-        return ['All', ...Array.from(subjects)];
+        return ['All', ...new Set(this.quizHistory.map(quiz => quiz.subject))];
       },
       filteredAndSortedHistory() {
         return this.quizHistory
           .filter(quiz => {
-            const matchesSubject = this.filterSubject === 'All' || quiz.subject === this.filterSubject;
-            const matchesStatus = this.filterStatus === 'All' || quiz.status === this.filterStatus;
+            const matchesSubject = this.selectedSubject === 'All' || quiz.subject === this.selectedSubject;
             const matchesSearch = quiz.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                                 quiz.subject.toLowerCase().includes(this.searchQuery.toLowerCase());
-            return matchesSubject && matchesStatus && matchesSearch;
+            return matchesSubject && matchesSearch;
           })
           .sort((a, b) => {
             let comparison = 0;
-            switch(this.sortBy) {
+            switch (this.sortField) {
               case 'date':
                 comparison = new Date(b.date) - new Date(a.date);
                 break;
@@ -41,40 +34,58 @@ export const ScorePage = {
               case 'name':
                 comparison = a.name.localeCompare(b.name);
                 break;
+              case 'subject':
+                comparison = a.subject.localeCompare(b.subject);
+                break;
             }
-            return this.sortOrder === 'desc' ? comparison : -comparison;
+            return this.sortOrder === 'asc' ? comparison * -1 : comparison;
           });
       },
       averageScore() {
-        const scores = this.filteredAndSortedHistory.map(quiz => quiz.score);
-        return scores.length ? Math.round(scores.reduce((a, b) => a + b) / scores.length) : 0;
+        if (!this.quizHistory.length) return 0;
+        const total = this.quizHistory.reduce((sum, quiz) => sum + quiz.score, 0);
+        return Math.round(total / this.quizHistory.length);
       },
       passRate() {
-        const passed = this.filteredAndSortedHistory.filter(quiz => quiz.status === 'Passed').length;
-        return this.filteredAndSortedHistory.length 
-          ? Math.round((passed / this.filteredAndSortedHistory.length) * 100) 
-          : 0;
+        if (!this.quizHistory.length) return 0;
+        const passed = this.quizHistory.filter(quiz => quiz.score >= 70).length;
+        return Math.round((passed / this.quizHistory.length) * 100);
       }
     },
     methods: {
-      getStatusClass(status) {
+      async loadHistory() {
+        try {
+          this.loading = true;
+          const response = await this.$store.dispatch('fetchQuizHistory');
+          this.quizHistory = response.history;
+        } catch (error) {
+          this.error = error.message;
+        } finally {
+          this.loading = false;
+        }
+      },
+      getStatusClass(score) {
         return {
-          'badge bg-success': status === 'Passed',
-          'badge bg-danger': status === 'Failed'
+          'bg-success': score >= 70,
+          'bg-warning': score >= 50 && score < 70,
+          'bg-danger': score < 50
         };
       },
       setSorting(field) {
-        if (this.sortBy === field) {
-          this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+        if (this.sortField === field) {
+          this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
         } else {
-          this.sortBy = field;
+          this.sortField = field;
           this.sortOrder = 'desc';
         }
       },
       getSortIcon(field) {
-        if (this.sortBy !== field) return 'bi bi-arrow-down-up';
-        return this.sortOrder === 'desc' ? 'bi bi-arrow-down' : 'bi bi-arrow-up';
+        if (this.sortField !== field) return 'bi-arrow-down-up';
+        return this.sortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down';
       }
+    },
+    created() {
+      this.loadHistory();
     },
     template: `
       <div class="container mt-4">
@@ -99,74 +110,79 @@ export const ScorePage = {
             </div>
           </div>
         </div>
-  
+
         <!-- Filters -->
         <div class="card mb-4">
           <div class="card-body">
             <div class="row">
-              <div class="col-md-3">
-                <select class="form-select" v-model="filterSubject">
-                  <option v-for="subject in subjects" :key="subject">{{subject}}</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <select class="form-select" v-model="filterStatus">
-                  <option>All</option>
-                  <option>Passed</option>
-                  <option>Failed</option>
-                </select>
+              <div class="col-md-6">
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-search"></i></span>
+                  <input type="text" class="form-control" v-model="searchQuery" 
+                         placeholder="Search by quiz name or subject...">
+                </div>
               </div>
               <div class="col-md-6">
-                <input type="text" class="form-control" v-model="searchQuery" 
-                       placeholder="Search by quiz name or subject...">
+                <select class="form-select" v-model="selectedSubject">
+                  <option v-for="subject in subjects" :key="subject" :value="subject">
+                    {{ subject }}
+                  </option>
+                </select>
               </div>
             </div>
           </div>
         </div>
-  
-        <!-- Score Table -->
-        <div class="card">
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th @click="setSorting('name')" style="cursor: pointer">
-                      Quiz Name <i :class="getSortIcon('name')"></i>
-                    </th>
-                    <th @click="setSorting('subject')" style="cursor: pointer">
-                      Subject <i :class="getSortIcon('subject')"></i>
-                    </th>
-                    <th>Questions</th>
-                    <th @click="setSorting('score')" style="cursor: pointer">
-                      Score <i :class="getSortIcon('score')"></i>
-                    </th>
-                    <th>Time Spent</th>
-                    <th @click="setSorting('date')" style="cursor: pointer">
-                      Date <i :class="getSortIcon('date')"></i>
-                    </th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="quiz in filteredAndSortedHistory" :key="quiz.id">
-                    <td>{{quiz.name}}</td>
-                    <td>{{quiz.subject}}</td>
-                    <td>{{quiz.questions}}</td>
-                    <td>{{quiz.score}}%</td>
-                    <td>{{quiz.timeSpent}}</td>
-                    <td>{{quiz.date}}</td>
-                    <td>
-                      <span :class="getStatusClass(quiz.status)">
-                        {{quiz.status}}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+
+        <!-- Loading and Error States -->
+        <div v-if="loading" class="text-center">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+
+        <div v-else-if="error" class="alert alert-danger">
+          {{ error }}
+        </div>
+
+        <!-- Quiz History Table -->
+        <div v-else class="card">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th @click="setSorting('name')" style="cursor: pointer">
+                    Quiz Name <i :class="'bi ' + getSortIcon('name')"></i>
+                  </th>
+                  <th @click="setSorting('subject')" style="cursor: pointer">
+                    Subject <i :class="'bi ' + getSortIcon('subject')"></i>
+                  </th>
+                  <th>Questions</th>
+                  <th @click="setSorting('score')" style="cursor: pointer">
+                    Score <i :class="'bi ' + getSortIcon('score')"></i>
+                  </th>
+                  <th @click="setSorting('date')" style="cursor: pointer">
+                    Date <i :class="'bi ' + getSortIcon('date')"></i>
+                  </th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="quiz in filteredAndSortedHistory" :key="quiz.id">
+                  <td>{{ quiz.name }}</td>
+                  <td>{{ quiz.subject }}</td>
+                  <td>{{ quiz.questions }}</td>
+                  <td>{{ quiz.score }}%</td>
+                  <td>{{ new Date(quiz.date).toLocaleDateString() }}</td>
+                  <td>
+                    <span class="badge" :class="getStatusClass(quiz.score)">
+                      {{ quiz.score >= 70 ? 'Passed' : 'Failed' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
     `
-  };
+};

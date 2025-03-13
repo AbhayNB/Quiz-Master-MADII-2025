@@ -58,11 +58,19 @@ class Chapter(db.Model):
     subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)  
     quizes = db.relationship('Quiz', backref='chapter', lazy=True)  
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'subject_id': self.subject_id,
+            'quizCount': len(self.quizes)
+        }
 class Quiz(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
-    deficulty = db.Column(db.String(80), nullable=True)
+    difficulty = db.Column(Enum('Easy', 'Medium', 'Hard', name='difficulty_enum'), nullable=True)
     duration = db.Column(db.Integer, nullable=False)
     chapter_id = db.Column(db.Integer, db.ForeignKey('chapter.id'), nullable=False)
     questions = db.relationship('Question', backref='quiz', lazy=True)
@@ -117,3 +125,24 @@ class Score(db.Model):
             'score': self.score,
             'timestamp': self.timestamp.isoformat()
         }
+    
+
+class Log(db.Model):
+    id=db.Column(db.Integer,primary_key=True)
+    type = db.Column(Enum(
+        'quiz_added', 
+        'user_registered', 
+        'subject_added', 
+        'chapter_added', 
+        'quiz_updated', 
+        'user_updated', 
+        'subject_updated', 
+        'chapter_updated', 
+        'quiz_deleted', 
+        'user_deleted', 
+        'subject_deleted', 
+        'chapter_deleted', 
+        name='recent_type'
+    ))
+    info=db.Column(db.String(255), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)

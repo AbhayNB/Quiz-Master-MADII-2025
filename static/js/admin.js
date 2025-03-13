@@ -1,5 +1,6 @@
 // Store
 import {store} from './store.js';
+import {api} from './services/api.js';
 
 // Components
 import { Navbar } from './components/navbar.js';
@@ -10,384 +11,234 @@ import { AdminDashboard } from './pages/admin/dashboard.js';
 import { ChaptersPage } from './pages/admin/chapters.js';
 import { QuizzesPage } from './pages/admin/quizzes.js';
 import { QuestionsPage } from './pages/admin/questions.js';
+import { AnalyticsPage } from './pages/admin/analytics.js';
 
 // auth
-
 const LoginPage = {
-  data() {
-    return {
-      email: '',
-      password: '',
-      error: null,
-      loading: false
-    };
-  },
-  methods: {
-    async login() {
-      this.loading = true;
-      this.error = null;
-      try {
-        const response = await fetch(`${window.API_URL}/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: this.email,
-            password: this.password
-          })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Login failed');
+    data() {
+        return {
+            email: '',
+            password: '',
+            error: null,
+            loading: false
         }
+    },
+    methods: {
+        async login() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const data = await api.auth.login({
+                    email: this.email,
+                    password: this.password
+                });
 
-        // Store tokens and user data
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('email', data.email);
-        localStorage.setItem('username', data.username);
-        localStorage.setItem('role', data.role);
-        
-        // Update Vuex store
-        this.$store.commit('setLogged', true);
-        
-        // Redirect to home
-        this.$router.push('/');
-      } catch (err) {
-        this.error = err.message;
-      } finally {
-        this.loading = false;
-      }
-    }
-  },
-  template: `
-    <div class="container mt-5">
-      <div class="row justify-content-center">
-        <div class="col-md-6">
-          <div class="card shadow">
-            <div class="card-body p-5">
-              <h2 class="text-center mb-4">Login</h2>
-              
-              <div v-if="error" class="alert alert-danger">
-                {{ error }}
-              </div>
+                if (data.role !== 'admin') {
+                    throw new Error('Access denied. Admin privileges required.');
+                }
 
-              <form @submit.prevent="login">
-                <div class="mb-3">
-                  <label class="form-label">Email</label>
-                  <input 
-                    type="email" 
-                    class="form-control" 
-                    v-model="email" 
-                    required
-                  >
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Password</label>
-                  <input 
-                    type="password" 
-                    class="form-control" 
-                    v-model="password" 
-                    required
-                  >
-                </div>
-
-                <button 
-                  type="submit" 
-                  class="btn btn-primary w-100" 
-                  :disabled="loading"
-                >
-                  {{ loading ? 'Logging in...' : 'Login' }}
-                </button>
-              </form>
-
-              <div class="text-center mt-3">
-                <p>Don't have an account? 
-                  <router-link to="/register">Register</router-link>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `
-};
-
-const RegisterPage = {
-  data() {
-    return {
-      username: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      name: '',
-      error: null,
-      loading: false
-    };
-  },
-  methods: {
-    async register() {
-      if (this.password !== this.confirmPassword) {
-        this.error = 'Passwords do not match';
-        return;
-      }
-
-      this.loading = true;
-      this.error = null;
-
-      try {
-        const response = await fetch(`${window.API_URL}/register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: this.username,
-            email: this.email,
-            password: this.password,
-            name: this.name
-          })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Registration failed');
+                // Store tokens and user data
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('email', data.email);
+                localStorage.setItem('username', data.username);
+                localStorage.setItem('role', data.role);
+                
+                // Update Vuex store
+                this.$store.commit('setLogged', true);
+                
+                // Redirect to admin dashboard
+                this.$router.push('/');
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.loading = false;
+            }
         }
-
-        // Redirect to login page
-        this.$router.push('/login');
-      } catch (err) {
-        this.error = err.message;
-      } finally {
-        this.loading = false;
-      }
-    }
-  },
-  template: `
+    },
+    template: `
     <div class="container mt-5">
-      <div class="row justify-content-center">
-        <div class="col-md-6">
-          <div class="card shadow">
-            <div class="card-body p-5">
-              <h2 class="text-center mb-4">Register</h2>
-              
-              <div v-if="error" class="alert alert-danger">
-                {{ error }}
-              </div>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-body p-5">
+                        <h2 class="text-center mb-4">Admin Login</h2>
+                        
+                        <div v-if="error" class="alert alert-danger">
+                            {{ error }}
+                        </div>
 
-              <form @submit.prevent="register">
-                <div class="mb-3">
-                  <label class="form-label">Username</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    v-model="username" 
-                    required
-                  >
+                        <form @submit.prevent="login">
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input 
+                                    type="email" 
+                                    class="form-control" 
+                                    v-model="email"
+                                    required
+                                >
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    v-model="password"
+                                    required
+                                >
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                class="btn btn-primary w-100"
+                                :disabled="loading"
+                            >
+                                {{ loading ? 'Logging in...' : 'Admin Login' }}
+                            </button>
+                        </form>
+                    </div>
                 </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Name</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    v-model="name" 
-                    required
-                  >
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Email</label>
-                  <input 
-                    type="email" 
-                    class="form-control" 
-                    v-model="email" 
-                    required
-                  >
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Password</label>
-                  <input 
-                    type="password" 
-                    class="form-control" 
-                    v-model="password" 
-                    required
-                  >
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Confirm Password</label>
-                  <input 
-                    type="password" 
-                    class="form-control" 
-                    v-model="confirmPassword" 
-                    required
-                  >
-                </div>
-
-                <button 
-                  type="submit" 
-                  class="btn btn-primary w-100" 
-                  :disabled="loading"
-                >
-                  {{ loading ? 'Creating account...' : 'Register' }}
-                </button>
-              </form>
-
-              <div class="text-center mt-3">
-                <p>Already have an account? 
-                  <router-link to="/login">Login</router-link>
-                </p>
-              </div>
             </div>
-          </div>
         </div>
-      </div>
     </div>
-  `
+    `
 };
 
 // Update routes array with new components
 const routes = [
-  { 
-    path: '/admin', 
-    component: AdminDashboard,
-    beforeEnter: (to, from, next) => {
-      const loggedIn = store.getters.logged;
-      const role = localStorage.getItem('role');
-      if (loggedIn && role === 'admin') {
-        next();
-      } else {
-        next('/login');
-      }
+    { 
+        path: '/', 
+        component: AdminDashboard,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        }
+    },
+    { path: '/login', component: LoginPage },
+    { 
+        path: '/subjects', 
+        component: SubjectsPage,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        }
+    },
+    { 
+        path: '/subjects/:id/chapters', 
+        component: ChaptersPage,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        },
+        props: true
+    },
+    { 
+        path: '/chapters/:id/quizzes', 
+        component: QuizzesPage,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        },
+        props: true
+    },
+    { 
+        path: '/quizzes/:id/questions', 
+        component: QuestionsPage,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        },
+        props: true
+    },
+    { 
+        path: '/analytics', 
+        component: AnalyticsPage,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        }
     }
-  },
-  { path: '/login', component: LoginPage },
-  { path: '/register', component: RegisterPage },
-  { 
-    path: '/subjects', 
-    component: SubjectsPage,
-    beforeEnter: (to, from, next) => {
-      const loggedIn = store.getters.logged;
-      const role = localStorage.getItem('role');
-      if (loggedIn && role === 'admin') {
-        next();
-      } else {
-        next('/login');
-      }
-    }
-  },
-  { 
-    path: '/subjects/:id/chapters', 
-    component: ChaptersPage,
-    beforeEnter: (to, from, next) => {
-      const loggedIn = store.getters.logged;
-      const role = localStorage.getItem('role');
-      if (loggedIn && role === 'admin') {
-        next();
-      } else {
-        next('/login');
-      }
-    },
-    props: true
-  },
-  { 
-    path: '/chapters/:id/quizzes', 
-    component: QuizzesPage,
-    beforeEnter: (to, from, next) => {
-      const loggedIn = store.getters.logged;
-      const role = localStorage.getItem('role');
-      if (loggedIn && role === 'admin') {
-        next();
-      } else {
-        next('/login');
-      }
-    },
-    props: true
-  },
-  { 
-    path: '/quizzes/:id/questions', 
-    component: QuestionsPage,
-    beforeEnter: (to, from, next) => {
-      const loggedIn = store.getters.logged;
-      const role = localStorage.getItem('role');
-      if (loggedIn && role === 'admin') {
-        next();
-      } else {
-        next('/login');
-      }
-    },
-    props: true
-  }
 ];
 
 const router = VueRouter.createRouter({
-  history: VueRouter.createWebHashHistory(),
-  routes
+    history: VueRouter.createWebHashHistory(),
+    routes
 });
-  
+
 const app = Vue.createApp({
-  data() {
-    return {
-      appInfo: 'Welcome to Knowlympics ! Test your knowledge across various subjects with our interactive quizzes. Track your progress, compete with others, and improve your skills. Whether you\'re a student preparing for exams or just love learning, Quiz Master has something for everyone!',
-      appName: 'Knowlympics',
-      quizCategories: [
-        { id: 1, name: 'Mathematics', description: 'Test your math skills with these quizzes' },
-        { id: 2, name: 'Science', description: 'Explore the world of science with these quizzes' },
-        { id: 3, name: 'History', description: 'Learn about historical events and figures' },
-        { id: 4, name: 'Geography', description: 'Discover the world and its wonders' },
-        { id: 5, name: 'English', description: 'Improve your English language skills' },
-        { id: 6, name: 'Computer Science', description: 'Test your knowledge of computers and technology' }
-      ],
-    };
-  },
-  computed: {
-    navLinks() {
-      const isAdmin = localStorage.getItem('role') === 'admin';
-      const links = [
-        { name: 'Dashboard', path: '#/admin', icon: 'bi bi-speedometer2', active: true },
-        { name: 'Subjects', path: '#/subjects', icon: 'bi bi-journal-text', active: true }
-      ];
-      
-      if (isAdmin) {
-        links.push(
-          { name: 'Users', path: '#/users', icon: 'bi bi-people-fill' },
-          { name: 'Reports', path: '#/reports', icon: 'bi bi-graph-up' }
-        );
-      }
-      
-      links.push({
-        name: 'Profile',
-        icon: 'bi bi-person-circle',
-        children: [
-          { name: 'Settings', path: '#/settings', icon: 'bi bi-gear' },
-          { name: 'My Profile', path: '#/profile', icon: 'bi bi-person-circle' },
-          { name: 'Logout', action: () => {
-            localStorage.clear();
-            this.$store.commit('setLogged', false);
-            this.$router.push('/login');
-          }, icon: 'bi bi-box-arrow-right', class: 'text-danger' }
-        ]
-      });
-      
-      return this.$store.getters.logged ? links : [];
+    data() {
+        return {
+            API_URL: ''
+        }
+    },
+    computed: {
+        navLinks() {
+            const links = [
+                { name: 'Dashboard', path: '#/', icon: 'bi bi-speedometer2' },
+                { name: 'Subjects', path: '#/subjects', icon: 'bi bi-book' },
+                { name: 'Analytics', path: '#/analytics', icon: 'bi bi-graph-up' }
+            ];
+
+            // Add profile menu
+            links.push({
+                name: localStorage.getItem('username') || 'Profile',
+                icon: 'bi bi-person-circle',
+                children: [
+                    { name: 'Settings', path: '#/profile-settings', icon: 'bi bi-gear' },
+                    { name: 'My Profile', path: '#/profile', icon: 'bi bi-person-circle' },
+                    { 
+                        name: 'Logout', 
+                        action: () => {
+                            localStorage.clear();
+                            this.$store.commit('setLogged', false);
+                            this.$router.push('/login');
+                        }, 
+                        icon: 'bi bi-box-arrow-right', 
+                        class: 'text-danger' 
+                    }
+                ]
+            });
+
+            return links;
+        }
+    },
+    components: {
+        'navbar': Navbar,
+    },
+    created() {
+        const logged = localStorage.getItem('access_token') !== null;
+        this.$store.commit('setLogged', logged);
     }
-  },
-  components: {
-    'navbar': Navbar,
-  },
-  created() {
-    const access_token = localStorage.getItem('access_token');
-    if (access_token) {
-      this.$store.commit('setLogged', true);
-    }
-  }
 });
 
 app.use(store);

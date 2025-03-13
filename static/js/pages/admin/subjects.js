@@ -63,168 +63,99 @@ export const SubjectsPage = {
                 description: ''
             },
             editingSubject: null,
-            searchQuery: '',
             loading: false,
-            isLoading: true
-        };
+            error: null
+        }
     },
     computed: {
-        filteredSubjects() {
-            const subjects = this.subjects['subjects'] || [];
-            return subjects.filter(subject => 
-                subject.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                subject.description.toLowerCase().includes(this.searchQuery.toLowerCase())
-            );
-        },
         subjects() {
-            return store.state.subjects;
+            return this.$store.getters.subjects;
         }
     },
     methods: {
-        async addSubject() {
-            if (!this.newSubject.name) return;
-            
-            this.loading = true;
+        async createSubject() {
             try {
-                const response = await fetch(`${window.API_URL}/create_subject`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(this.newSubject)
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to add subject');
-                }
-                
-                store.commit('addSubject');
-                
-                // Reset form
-                this.newSubject.name = '';
-                this.newSubject.description = '';
-                
+                await this.$store.dispatch('createSubject', this.newSubject);
+                this.newSubject = { name: '', description: '' };
                 // Close modal
                 document.getElementById('addSubjectModal').querySelector('[data-bs-dismiss="modal"]').click();
             } catch (error) {
-                console.error('Error adding subject:', error);
-            } finally {
-                this.loading = false;
-            }
-        },
-        async editSubject() {
-            if (!this.editingSubject || !this.editingSubject.name) return;
-            
-            this.loading = true;
-            try {
-                const response = await fetch(`${window.API_URL}/update_subject/${this.editingSubject.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        name: this.editingSubject.name,
-                        description: this.editingSubject.description
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to update subject');
-                }
-
-                store.commit('updateSubject', this.editingSubject);
-
-                // Close modal
-                document.getElementById('editSubjectModal').querySelector('[data-bs-dismiss="modal"]').click();
-                this.editingSubject = null;
-            } catch (error) {
-                console.error('Error updating subject:', error);
-            } finally {
-                this.loading = false;
-            }
-        },
-        async deleteSubject(subjectId) {
-            if (!confirm('Are you sure you want to delete this subject? This action cannot be undone.')) return;
-            
-            this.loading = true;
-            try {
-                const response = await fetch(`${window.API_URL}/delete_subject/${subjectId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to delete subject');
-                }
-
-                store.commit('deleteSubject', subjectId);
-            } catch (error) {
-                console.error('Error deleting subject:', error);
-            } finally {
-                this.loading = false;
+                this.error = error.message;
             }
         },
         startEdit(subject) {
             this.editingSubject = { ...subject };
         },
-        viewChapters(subject) {
-            // Navigate to chapters page using Vue Router
-            this.$router.push(`/subjects/${subject.id}/chapters`);
+        async updateSubject() {
+            if (!this.editingSubject) return;
+            
+            try {
+                await this.$store.dispatch('updateSubject', {
+                    id: this.editingSubject.id,
+                    subject: {
+                        name: this.editingSubject.name,
+                        description: this.editingSubject.description
+                    }
+                });
+                this.editingSubject = null;
+                // Close modal
+                document.getElementById('editSubjectModal').querySelector('[data-bs-dismiss="modal"]').click();
+            } catch (error) {
+                this.error = error.message;
+            }
+        },
+        async deleteSubject(id) {
+            if (!confirm('Are you sure you want to delete this subject?')) return;
+            
+            try {
+                await this.$store.dispatch('deleteSubject', id);
+            } catch (error) {
+                this.error = error.message;
+            }
+        },
+        navigateToChapters(subjectId) {
+            this.$router.push(`/subjects/${subjectId}/chapters`);
         }
     },
-    async created() {
-        this.isLoading = true;
-        await store.dispatch('subjects');
-        this.isLoading = false;
+    mounted() {
+        // Load subjects when component is mounted
+        this.$store.dispatch('fetchSubjects');
     },
     template: `
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Manage Subjects</h2>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSubjectModal">
-                <i class="bi bi-plus-lg"></i> Add New Subject
+            <h2>Subjects</h2>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSubjectModal">
+                <i class="bi bi-plus-lg"></i> Add Subject
             </button>
         </div>
 
-        <!-- Search Bar -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="bi bi-search"></i>
-                    </span>
-                    <input 
-                        type="text" 
-                        class="form-control" 
-                        v-model="searchQuery"
-                        placeholder="Search subjects..."
-                    >
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading State -->
-        <div v-if="isLoading" class="text-center my-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
+        <div v-if="error" class="alert alert-danger">
+            {{ error }}
         </div>
 
         <!-- Subjects Grid -->
-        <div v-else class="row row-cols-1 row-cols-md-3 g-4">
-            <div v-if="filteredSubjects.length === 0" class="col-12 text-center">
-                <p class="text-muted">No subjects found.</p>
-            </div>
-            <div class="col" v-for="subject in filteredSubjects" :key="subject.id">
-                <SubjectCard 
-                    :subject=subject
-                    :name=subject.name
-                    @edit="startEdit"
-                    @delete="deleteSubject"
-                    @view-chapters="viewChapters"
-                />
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            <div v-for="subject in subjects" :key="subject.id" class="col">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ subject.name }}</h5>
+                        <p class="card-text">{{ subject.description }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-primary" @click="navigateToChapters(subject.id)">
+                                <i class="bi bi-journal-text"></i> Chapters
+                            </button>
+                            <button class="btn btn-outline-primary" @click="startEdit(subject)" data-bs-toggle="modal" data-bs-target="#editSubjectModal">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" @click="deleteSubject(subject.id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -237,37 +168,22 @@ export const SubjectsPage = {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form @submit.prevent="addSubject">
+                        <form @submit.prevent="createSubject">
                             <div class="mb-3">
-                                <label class="form-label">Subject Name</label>
-                                <input 
-                                    type="text" 
-                                    class="form-control" 
-                                    v-model="newSubject.name"
-                                    required
-                                >
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" v-model="newSubject.name" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Description</label>
-                                <textarea 
-                                    class="form-control" 
-                                    v-model="newSubject.description" 
-                                    rows="3"
-                                ></textarea>
+                                <textarea class="form-control" v-model="newSubject.description" rows="3" required></textarea>
+                            </div>
+                            <div class="modal-footer px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary" :disabled="loading">
+                                    {{ loading ? 'Creating...' : 'Create Subject' }}
+                                </button>
                             </div>
                         </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button 
-                            type="button" 
-                            class="btn btn-primary" 
-                            @click="addSubject"
-                            :disabled="loading || !newSubject.name"
-                        >
-                            <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-                            Add Subject
-                        </button>
                     </div>
                 </div>
             </div>
@@ -281,38 +197,23 @@ export const SubjectsPage = {
                         <h5 class="modal-title">Edit Subject</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body" v-if="editingSubject">
-                        <form @submit.prevent="editSubject">
+                    <div class="modal-body">
+                        <form @submit.prevent="updateSubject" v-if="editingSubject">
                             <div class="mb-3">
-                                <label class="form-label">Subject Name</label>
-                                <input 
-                                    type="text" 
-                                    class="form-control" 
-                                    v-model="editingSubject.name"
-                                    required
-                                >
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" v-model="editingSubject.name" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Description</label>
-                                <textarea 
-                                    class="form-control" 
-                                    v-model="editingSubject.description" 
-                                    rows="3"
-                                ></textarea>
+                                <textarea class="form-control" v-model="editingSubject.description" rows="3" required></textarea>
+                            </div>
+                            <div class="modal-footer px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary" :disabled="loading">
+                                    {{ loading ? 'Saving...' : 'Save Changes' }}
+                                </button>
                             </div>
                         </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button 
-                            type="button" 
-                            class="btn btn-primary" 
-                            @click="editSubject"
-                            :disabled="loading || !editingSubject?.name"
-                        >
-                            <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-                            Save Changes
-                        </button>
                     </div>
                 </div>
             </div>

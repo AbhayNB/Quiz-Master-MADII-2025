@@ -102,6 +102,11 @@ def get_chapters(subject_id):
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
 
+@app.route('/chapter/<int:chapter_id>',methods=['GET'])
+def get_chapter(chapter_id):
+    chap=Chapter.query.get(chapter_id)
+    return jsonify(chap.to_dict())
+
 @app.route('/create_chapter', methods=['POST'])
 def create_chapter():
     data = request.get_json()
@@ -173,6 +178,18 @@ def create_quiz():
         )
         db.session.add(quiz)
         db.session.commit()
+        print({
+            'msg': 'Quiz created successfully', 
+            'quiz': {
+                'id': quiz.id,
+                'name': quiz.name,
+                'description': quiz.description,
+                'difficulty': quiz.difficulty,
+                'duration': quiz.duration,
+                'chapter_id': quiz.chapter_id,
+                'questionCount': 0
+            }
+        })
         return jsonify({
             'msg': 'Quiz created successfully', 
             'quiz': {
@@ -238,6 +255,7 @@ def get_quiz(quiz_id):
     try:
         quiz = Quiz.query.get(quiz_id)
         if not quiz:
+            print('error for 1 quiz') 
             return jsonify({'msg': 'Quiz not found'}), 404
         
         return jsonify({
@@ -262,6 +280,96 @@ def delete_quiz(quiz_id):
         db.session.delete(quiz)
         db.session.commit()
         return jsonify({'msg': 'Quiz deleted successfully'}), 200
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+
+# Questions API's
+
+@app.route('/add_que/<int:quiz_id>', methods=['POST'])
+def add_que(quiz_id):
+    try:
+        data = request.get_json()
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'msg': 'Quiz not found'}), 404
+        que=Question(
+            question=data['question'],
+            option1=data['option1'],
+            option2=data['option2'],
+            option3=data['option3'],
+            option4=data['option4'],
+            correct_option=data['correct_option'],
+            quiz_id=quiz_id
+        )
+        db.session.add(que)
+        db.session.commit()
+        return jsonify({'msg': 'Question added successfully', 'question': {
+            'id': que.id,
+            'question': que.question,
+            'option1': que.option1,
+            'option2': que.option2,
+            'option3': que.option3,
+            'option4': que.option4,
+            'correct_option': que.correct_option,
+            'quiz_id': que.quiz_id
+        }})
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/get_ques/<int:quiz_id>', methods=['GET'])
+def get_ques(quiz_id):
+    try:
+        questions = Question.query.filter_by(quiz_id=quiz_id).all()
+        return jsonify(questions=[{
+            'id': que.id,
+            'question': que.question,
+            'option1': que.option1,
+            'option2': que.option2,
+            'option3': que.option3,
+            'option4': que.option4,
+            'correct_option': que.correct_option,
+            'quiz_id': que.quiz_id
+        } for que in questions])
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/delete_que/<int:que_id>', methods=['DELETE'])
+def delete_que(que_id):
+    try:
+        que = Question.query.get(que_id)
+        if not que:
+            return jsonify({'msg': 'Question not found'}), 404
+        db.session.delete(que)
+        db.session.commit()
+        return jsonify({'msg': 'Question deleted successfully'}), 200
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/update_que/<int:que_id>', methods=['PUT'])
+def update_que(que_id):   
+    try:
+        que = Question.query.get(que_id)
+        if not que:
+            return jsonify({'msg': 'Question not found'}), 404
+        data = request.get_json()
+        que.question = data.get('question', que.question)
+        que.option1 = data.get('option1', que.option1)
+        que.option2 = data.get('option2', que.option2)
+        que.option3 = data.get('option3', que.option3)
+        que.option4 = data.get('option4', que.option4)
+        que.correct_option = data.get('correct_option', que.correct_option)
+        db.session.commit()
+        return jsonify({'msg': 'Question updated successfully', 'question': {
+            'id': que.id,
+            'question': que.question,
+            'option1': que.option1,
+            'option2': que.option2,
+            'option3': que.option3,
+            'option4': que.option4,
+            'correct_option': que.correct_option,
+            'quiz_id': que.quiz_id
+        }})
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
 

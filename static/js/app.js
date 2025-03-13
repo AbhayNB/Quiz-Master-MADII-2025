@@ -269,7 +269,7 @@ const routes = [
   { path: '/login', component: LoginPage },
   { path: '/register', component: RegisterPage },
   { path: '/summary', component: SummaryPage },
-  { path: '/quiz', component: QuizPage },
+  { path: '/quiz/:id', component: QuizPage, props: true },
   { path: '/scores', component: ScorePage },
   // { 
   //   path: '/admin', 

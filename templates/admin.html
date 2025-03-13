@@ -36,27 +36,10 @@
     <div id="app">
       <Navbar
       brand-name=" Admin Portal"
-      :links="[
-        { name: 'Home', path: '#/', icon: 'bi bi-house', active: true },
-        { name: 'Upcoming Quizzes', path: '#/dashboard', icon: 'bi bi-speedometer2', active: true },
-        { name: 'Scores', path: '#/scores', icon: 'bi bi-graph-up' },
-        { name: 'Summary', path: '#/summary', icon: 'bi bi-columns-gap' },
-        {
-          name: 'Profile',
-          icon: 'bi bi-person-circle',
-          children: [
-            { name: 'Settings', path: '#/profile-settings', icon: 'bi bi-gear' },
-            { name: 'My Profile', path: '#/profile', icon: 'bi bi-person-circle' },
-            { name: 'Logout', action: logout, icon: 'bi bi-box-arrow-right', class: 'text-danger' }
-          ]
-        }
-      ]"
+      :links="navLinks"
     ></Navbar>
-
-     
-            <router-view></router-view>
-        
-
+    
+    <router-view></router-view>
     </div>
 
     <!-- Link to your Vue application logic -->
