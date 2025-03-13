@@ -5,10 +5,11 @@ import {store} from './store.js';
 import { Navbar } from './components/navbar.js';
 
 // Pages
-import { Home } from './pages/home.js';
-import { SummaryPage } from './pages/summary.js';
-import { QuizPage } from './pages/quiz.js';
-import { ScorePage } from './pages/score.js';
+import { SubjectsPage } from './pages/admin/subjects.js';
+import { AdminDashboard } from './pages/admin/dashboard.js';
+import { ChaptersPage } from './pages/admin/chapters.js';
+import { QuizzesPage } from './pages/admin/quizzes.js';
+import { QuestionsPage } from './pages/admin/questions.js';
 
 // auth
 
@@ -255,11 +256,12 @@ const RegisterPage = {
 // Update routes array with new components
 const routes = [
   { 
-    path: '/', 
-    component: Home,
+    path: '/admin', 
+    component: AdminDashboard,
     beforeEnter: (to, from, next) => {
       const loggedIn = store.getters.logged;
-      if (loggedIn) {
+      const role = localStorage.getItem('role');
+      if (loggedIn && role === 'admin') {
         next();
       } else {
         next('/login');
@@ -268,87 +270,126 @@ const routes = [
   },
   { path: '/login', component: LoginPage },
   { path: '/register', component: RegisterPage },
-  { path: '/summary', component: SummaryPage },
-  { path: '/quiz', component: QuizPage },
-  { path: '/scores', component: ScorePage },
-  // { 
-  //   path: '/admin', 
-  //   component: AdminPage,
-  //   beforeEnter: (to, from, next) => {
-  //     const loggedIn = store.getters.logged;
-  //     const role = localStorage.getItem('role');
-  //     if (loggedIn && role === 'admin') {
-  //       next();
-  //     } else {
-  //       next('/');
-  //     }
-  //   }
-  // }
+  { 
+    path: '/subjects', 
+    component: SubjectsPage,
+    beforeEnter: (to, from, next) => {
+      const loggedIn = store.getters.logged;
+      const role = localStorage.getItem('role');
+      if (loggedIn && role === 'admin') {
+        next();
+      } else {
+        next('/login');
+      }
+    }
+  },
+  { 
+    path: '/subjects/:id/chapters', 
+    component: ChaptersPage,
+    beforeEnter: (to, from, next) => {
+      const loggedIn = store.getters.logged;
+      const role = localStorage.getItem('role');
+      if (loggedIn && role === 'admin') {
+        next();
+      } else {
+        next('/login');
+      }
+    },
+    props: true
+  },
+  { 
+    path: '/chapters/:id/quizzes', 
+    component: QuizzesPage,
+    beforeEnter: (to, from, next) => {
+      const loggedIn = store.getters.logged;
+      const role = localStorage.getItem('role');
+      if (loggedIn && role === 'admin') {
+        next();
+      } else {
+        next('/login');
+      }
+    },
+    props: true
+  },
+  { 
+    path: '/quizzes/:id/questions', 
+    component: QuestionsPage,
+    beforeEnter: (to, from, next) => {
+      const loggedIn = store.getters.logged;
+      const role = localStorage.getItem('role');
+      if (loggedIn && role === 'admin') {
+        next();
+      } else {
+        next('/login');
+      }
+    },
+    props: true
+  }
 ];
 
 const router = VueRouter.createRouter({
-    history: VueRouter.createWebHashHistory(), // or createWebHistory() for HTML5 History mode
-    routes
-  });
+  history: VueRouter.createWebHashHistory(),
+  routes
+});
   
 const app = Vue.createApp({
-    data() {
-        return {
-            appInfo: 'Welcome to Knowlympics ! Test your knowledge across various subjects with our interactive quizzes. Track your progress, compete with others, and improve your skills. Whether you\'re a student preparing for exams or just love learning, Quiz Master has something for everyone!',
-            appName: 'Knowlympics',
-            quizCategories: [
-                { id: 1, name: 'Mathematics', description: 'Test your math skills with these quizzes' },
-                { id: 2, name: 'Science', description: 'Explore the world of science with these quizzes' },
-                { id: 3, name: 'History', description: 'Learn about historical events and figures' },
-                { id: 4, name: 'Geography', description: 'Discover the world and its wonders' },
-                { id: 5, name: 'English', description: 'Improve your English language skills' },
-                { id: 6, name: 'Computer Science', description: 'Test your knowledge of computers and technology' }
-            ],
-        };
-    },
-    computed: {
-        navLinks() {
-            const isAdmin = localStorage.getItem('role') === 'admin';
-            const links = [
-                { name: 'Home', path: '#/', icon: 'bi bi-house', active: true },
-                { name: 'Upcoming Quizzes', path: '#/dashboard', icon: 'bi bi-speedometer2', active: true },
-                { name: 'Scores', path: '#/scores', icon: 'bi bi-graph-up' },
-                { name: 'Summary', path: '#/summary', icon: 'bi bi-columns-gap' }
-            ];
-            
-            if (isAdmin) {
-                links.push({ name: 'Admin', path: '#/admin', icon: 'bi bi-gear-fill' });
-            }
-            
-            links.push({
-                name: 'Profile',
-                icon: 'bi bi-person-circle',
-                children: [
-                    { name: 'Settings', path: '#/profile-settings', icon: 'bi bi-gear' },
-                    { name: 'My Profile', path: '#/profile', icon: 'bi bi-person-circle' },
-                    { name: 'Logout', action: () => {
-                        localStorage.clear();
-                        this.$store.commit('setLogged', false);
-                        this.$router.push('/login');
-                    }, icon: 'bi bi-box-arrow-right', class: 'text-danger' }
-                ]
-            });
-            
-            return this.$store.getters.logged ? links : [];
-        }
-    },
-    components: {
-        'navbar': Navbar,
-    },
-    created() {
-        const access_token = localStorage.getItem('access_token');
-        if (access_token) {
-            this.$store.commit('setLogged', true);
-        }
-
+  data() {
+    return {
+      appInfo: 'Welcome to Knowlympics ! Test your knowledge across various subjects with our interactive quizzes. Track your progress, compete with others, and improve your skills. Whether you\'re a student preparing for exams or just love learning, Quiz Master has something for everyone!',
+      appName: 'Knowlympics',
+      quizCategories: [
+        { id: 1, name: 'Mathematics', description: 'Test your math skills with these quizzes' },
+        { id: 2, name: 'Science', description: 'Explore the world of science with these quizzes' },
+        { id: 3, name: 'History', description: 'Learn about historical events and figures' },
+        { id: 4, name: 'Geography', description: 'Discover the world and its wonders' },
+        { id: 5, name: 'English', description: 'Improve your English language skills' },
+        { id: 6, name: 'Computer Science', description: 'Test your knowledge of computers and technology' }
+      ],
+    };
+  },
+  computed: {
+    navLinks() {
+      const isAdmin = localStorage.getItem('role') === 'admin';
+      const links = [
+        { name: 'Dashboard', path: '#/admin', icon: 'bi bi-speedometer2', active: true },
+        { name: 'Subjects', path: '#/subjects', icon: 'bi bi-journal-text', active: true }
+      ];
+      
+      if (isAdmin) {
+        links.push(
+          { name: 'Users', path: '#/users', icon: 'bi bi-people-fill' },
+          { name: 'Reports', path: '#/reports', icon: 'bi bi-graph-up' }
+        );
+      }
+      
+      links.push({
+        name: 'Profile',
+        icon: 'bi bi-person-circle',
+        children: [
+          { name: 'Settings', path: '#/settings', icon: 'bi bi-gear' },
+          { name: 'My Profile', path: '#/profile', icon: 'bi bi-person-circle' },
+          { name: 'Logout', action: () => {
+            localStorage.clear();
+            this.$store.commit('setLogged', false);
+            this.$router.push('/login');
+          }, icon: 'bi bi-box-arrow-right', class: 'text-danger' }
+        ]
+      });
+      
+      return this.$store.getters.logged ? links : [];
     }
+  },
+  components: {
+    'navbar': Navbar,
+  },
+  created() {
+    const access_token = localStorage.getItem('access_token');
+    if (access_token) {
+      this.$store.commit('setLogged', true);
+    }
+  }
 });
+
 app.use(store);
 app.use(router);
-// app.use(router);
 app.mount('#app');

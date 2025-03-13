@@ -2,7 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from sqlalchemy import Float,func
+from sqlalchemy import Float,func, CheckConstraint, Enum
 
 db = SQLAlchemy()
 
@@ -30,3 +30,90 @@ class User(db.Model):
 class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
+
+class Subject(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+
+    # One Subject -> Many Chapters
+    chapters = db.relationship('Chapter', backref='subject', lazy=True)  
+
+    def to_dict(self):
+        chap_count= len(self.chapters)
+        quiz_count = sum(len(chapter.quizes) for chapter in self.chapters)
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'quizCount': quiz_count,
+            'chapterCount': chap_count
+            
+        }
+
+class Chapter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)  
+    quizes = db.relationship('Quiz', backref='chapter', lazy=True)  
+
+class Quiz(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    deficulty = db.Column(db.String(80), nullable=True)
+    duration = db.Column(db.Integer, nullable=False)
+    chapter_id = db.Column(db.Integer, db.ForeignKey('chapter.id'), nullable=False)
+    questions = db.relationship('Question', backref='quiz', lazy=True)
+    
+
+class Question(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    question = db.Column(db.String(255), nullable=False)
+    
+    option1 = db.Column(db.String(255), nullable=False)
+    option2 = db.Column(db.String(255), nullable=False)
+    option3 = db.Column(db.String(255), nullable=False)
+    option4 = db.Column(db.String(255), nullable=False)
+
+    correct_option = db.Column(db.Integer, nullable=False) 
+
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint('correct_option BETWEEN 1 AND 4', name='check_correct_option'),
+    )
+
+    def get_correct_answer(self):
+        """Returns the correct option text."""
+        return getattr(self, f'option{self.correct_option}')
+
+    def to_dict(self):
+        """Convert question to JSON-friendly dictionary."""
+        return {
+            "id": self.id,
+            "question": self.question,
+            "options": [self.option1, self.option2, self.option3, self.option4],
+            "correct_option": self.correct_option,  
+            "quiz_id": self.quiz_id,
+        }
+
+class Score(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
+    score = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('scores', lazy=True))
+    quiz = db.relationship('Quiz', backref=db.backref('scores', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'quiz_id': self.quiz_id,
+            'score': self.score,
+            'timestamp': self.timestamp.isoformat()
+        }
