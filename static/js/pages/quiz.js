@@ -11,6 +11,7 @@ export const QuizPage = {
       questions: [],
       currentQuestionIndex: 0,
       answers: {},
+      correctAnswers: {},
       timer: null,
       timeLeft: 0,
       quizSubmitted: false,
@@ -75,7 +76,11 @@ export const QuizPage = {
       }, 1000);
     },
     selectAnswer(optionIndex) {
-      this.$set(this.answers, this.currentQuestion.id, optionIndex);
+      this.answers[this.currentQuestion.id] = optionIndex;
+      this.correctAnswers[this.currentQuestion.id] = this.currentQuestion.correct_option;
+      console.log(this.correctAnswers);
+      console.log(this.answers);
+      console.log(this.currentQuestion.id);
     },
     previousQuestion() {
       if (this.currentQuestionIndex > 0) {
@@ -92,20 +97,57 @@ export const QuizPage = {
         clearInterval(this.timer);
         
         const timeSpent = this.quiz.duration * 60 - this.timeLeft;
+        
+        // Format answers as a proper JSON object
+        const formattedAnswers = {};
+        for (const [questionId, answer] of Object.entries(this.answers)) {
+          formattedAnswers[questionId] = {
+            selectedOption: answer,
+            correctOption: this.correctAnswers[questionId],
+            isCorrect: answer == this.correctAnswers[questionId]
+          };
+        }
+        
+        let tentetive_score = 0;
+        for (const [key, value] of Object.entries(this.answers)) {
+          if (value == this.correctAnswers[key]) {
+            tentetive_score += 1;
+          }
+        }
+        let final_score = (tentetive_score / this.questions.length) * 100;
+        
         const submission = {
           quiz_id: this.quiz.id,
-          answers: this.answers,
-          time_spent: timeSpent
-        };
-
-        const result = await this.$store.dispatch('submitQuiz', submission);
-        this.result = {
-          score: result.score,
+          answers: formattedAnswers,
+          time_spent: timeSpent,
+          score: final_score,
           totalQuestions: this.questions.length,
-          correctAnswers: result.correct_answers,
-          incorrectAnswers: result.incorrect_answers,
+          correctAnswers: tentetive_score,
+          status: final_score >= 40 ? 'Passed' : 'Failed'
+        };
+        console.log(submission);
+        // Submit attempt to backend
+        const response = await fetch('/submit_quiz', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          },
+          body: JSON.stringify(submission)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.msg || 'Failed to submit quiz');
+        }
+        
+        this.result = {
+          score: submission.score,
+          totalQuestions: this.questions.length,
+          correctAnswers: tentetive_score,
+          incorrectAnswers: this.questions.length - tentetive_score,
           timeSpent: `${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s`,
-          status: result.score >= 70 ? 'Passed' : 'Failed'
+          status: submission.status
         };
         this.quizSubmitted = true;
       } catch (error) {

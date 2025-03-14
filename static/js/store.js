@@ -306,10 +306,10 @@ export const store = Vuex.createStore({
         },
         async fetchQuizHistory({ commit }) {
             try {
-                const response = await api.quiz.getHistory();
+                const response = await api.quiz.getAttempts();
                 return response;
             } catch (error) {
-                console.error('Error fetching quiz history:', error);
+                console.error('Error fetching quiz attempts:', error);
                 throw error;
             }
         },

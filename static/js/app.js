@@ -252,6 +252,24 @@ const RegisterPage = {
   `
 };
 
+
+const Subscriptions = {
+  template: `
+    <div class="container mt-5">
+      <div class="row justify-content-center">
+        <div class="col-md-6">
+          <div class="card shadow">
+            <div class="card-body p-5">
+              <h2 class="text-center mb-4">Subscriptions</h2>
+              <p>Coming soon...</p>
+            </div>
+          </div>
+        </div>  
+      </div>  
+    </div>
+  `
+}
+
 // Update routes array with new components
 const routes = [
   { 
@@ -271,6 +289,7 @@ const routes = [
   { path: '/summary', component: SummaryPage },
   { path: '/quiz/:id', component: QuizPage, props: true },
   { path: '/scores', component: ScorePage },
+  { path: '/subscriptions', component: Subscriptions },
   // { 
   //   path: '/admin', 
   //   component: AdminPage,
@@ -311,17 +330,17 @@ const app = Vue.createApp({
             const isAdmin = localStorage.getItem('role') === 'admin';
             const links = [
                 { name: 'Home', path: '#/', icon: 'bi bi-house', active: true },
-                { name: 'Upcoming Quizzes', path: '#/dashboard', icon: 'bi bi-speedometer2', active: true },
+                { name: 'Subscriptions', path: '#/subscriptions', icon: 'bi bi-speedometer2', active: true },
                 { name: 'Scores', path: '#/scores', icon: 'bi bi-graph-up' },
                 { name: 'Summary', path: '#/summary', icon: 'bi bi-columns-gap' }
             ];
             
             if (isAdmin) {
-                links.push({ name: 'Admin', path: '#/admin', icon: 'bi bi-gear-fill' });
+                links.push({ name: 'Admin', path: '/admin', icon: 'bi bi-gear-fill' });
             }
             
             links.push({
-                name: 'Profile',
+                name: localStorage.getItem('username') || 'Profile',
                 icon: 'bi bi-person-circle',
                 children: [
                     { name: 'Settings', path: '#/profile-settings', icon: 'bi bi-gear' },

@@ -141,6 +141,14 @@ const quizAPI = {
         });
         if (!response.ok) throw new Error('Failed to fetch quiz');
         return response.json();
+    },
+
+    getAttempts: async () => {
+        const response = await fetch('/get_attempts', {
+            headers: getHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to fetch attempts');
+        return response.json();
     }
 };
 
@@ -219,10 +227,22 @@ const authAPI = {
     }
 };
 
+// User APIs
+const userAPI = {
+    getSummary: async () => {
+        const response = await fetch('/user/summary', {
+            headers: getHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to fetch user summary');
+        return response.json();
+    }
+};
+
 export const api = {
     subject: subjectAPI,
     chapter: chapterAPI,
     quiz: quizAPI,
     question: questionAPI,
-    auth: authAPI
+    auth: authAPI,
+    user: userAPI
 };

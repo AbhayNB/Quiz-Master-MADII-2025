@@ -17,28 +17,23 @@ export const ScorePage = {
       filteredAndSortedHistory() {
         return this.quizHistory
           .filter(quiz => {
-            const matchesSubject = this.selectedSubject === 'All' || quiz.subject === this.selectedSubject;
             const matchesSearch = quiz.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                                 quiz.subject.toLowerCase().includes(this.searchQuery.toLowerCase());
-            return matchesSubject && matchesSearch;
+            const matchesSubject = this.selectedSubject === 'All' || quiz.subject === this.selectedSubject;
+            return matchesSearch && matchesSubject;
           })
           .sort((a, b) => {
-            let comparison = 0;
-            switch (this.sortField) {
-              case 'date':
-                comparison = new Date(b.date) - new Date(a.date);
-                break;
-              case 'score':
-                comparison = b.score - a.score;
-                break;
-              case 'name':
-                comparison = a.name.localeCompare(b.name);
-                break;
-              case 'subject':
-                comparison = a.subject.localeCompare(b.subject);
-                break;
+            let aValue = a[this.sortField];
+            let bValue = b[this.sortField];
+            
+            if (this.sortField === 'date') {
+              aValue = new Date(aValue);
+              bValue = new Date(bValue);
             }
-            return this.sortOrder === 'asc' ? comparison * -1 : comparison;
+            
+            if (aValue < bValue) return this.sortOrder === 'asc' ? -1 : 1;
+            if (aValue > bValue) return this.sortOrder === 'asc' ? 1 : -1;
+            return 0;
           });
       },
       averageScore() {
@@ -48,7 +43,7 @@ export const ScorePage = {
       },
       passRate() {
         if (!this.quizHistory.length) return 0;
-        const passed = this.quizHistory.filter(quiz => quiz.score >= 70).length;
+        const passed = this.quizHistory.filter(quiz => quiz.status === 'Passed').length;
         return Math.round((passed / this.quizHistory.length) * 100);
       }
     },
@@ -64,24 +59,28 @@ export const ScorePage = {
           this.loading = false;
         }
       },
-      getStatusClass(score) {
+      getStatusClass(status) {
         return {
-          'bg-success': score >= 70,
-          'bg-warning': score >= 50 && score < 70,
-          'bg-danger': score < 50
+          'bg-success': status === 'Passed',
+          'bg-danger': status === 'Failed'
         };
       },
       setSorting(field) {
-        if (this.sortField === field) {
+        if (field === this.sortField) {
           this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
         } else {
           this.sortField = field;
-          this.sortOrder = 'desc';
+          this.sortOrder = 'asc';
         }
       },
       getSortIcon(field) {
-        if (this.sortField !== field) return 'bi-arrow-down-up';
+        if (field !== this.sortField) return 'bi-arrow-down-up';
         return this.sortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down';
+      },
+      formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
       }
     },
     created() {
@@ -160,6 +159,7 @@ export const ScorePage = {
                   <th @click="setSorting('score')" style="cursor: pointer">
                     Score <i :class="'bi ' + getSortIcon('score')"></i>
                   </th>
+                  <th>Time Spent</th>
                   <th @click="setSorting('date')" style="cursor: pointer">
                     Date <i :class="'bi ' + getSortIcon('date')"></i>
                   </th>
@@ -172,10 +172,11 @@ export const ScorePage = {
                   <td>{{ quiz.subject }}</td>
                   <td>{{ quiz.questions }}</td>
                   <td>{{ quiz.score }}%</td>
+                  <td>{{ formatTime(quiz.timespent) }}</td>
                   <td>{{ new Date(quiz.date).toLocaleDateString() }}</td>
                   <td>
-                    <span class="badge" :class="getStatusClass(quiz.score)">
-                      {{ quiz.score >= 70 ? 'Passed' : 'Failed' }}
+                    <span class="badge" :class="getStatusClass(quiz.status)">
+                      {{ quiz.status }}
                     </span>
                   </td>
                 </tr>

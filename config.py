@@ -1,6 +1,6 @@
 class Config:
     SECRET_KEY = 'super-secret-key'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///db9.db'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///db5.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = 'jwt-secret-string'
     UPLOAD_FOLDER='uploads/'

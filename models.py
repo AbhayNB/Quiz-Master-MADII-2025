@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from sqlalchemy import Float,func, CheckConstraint, Enum
-
+from sqlalchemy.dialects.postgresql import JSON
 db = SQLAlchemy()
 
 # Association table between User and Role
@@ -106,6 +106,18 @@ class Question(db.Model):
             "correct_option": self.correct_option,  
             "quiz_id": self.quiz_id,
         }
+
+class Attempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
+    score = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timespent = db.Column(db.Integer, nullable=False)
+    submitted_answers = db.Column(JSON, nullable=False)
+    totalQuestions = db.Column(db.Integer, nullable=False)
+    correctAnswers = db.Column(db.Integer, nullable=False)
+    status = db.Column(Enum('Passed', 'Failed', name='status_enum'), nullable=False)
 
 class Score(db.Model):
     id = db.Column(db.Integer, primary_key=True)

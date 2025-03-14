@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from models import db, User, Role, Subject, Chapter, Quiz, Question, func
+from models import db, User, Role, Subject, Chapter, Quiz, Question, Attempt, func
 from config import Config
 from auth import role_required
 app = Flask(__name__)
@@ -389,13 +389,12 @@ def login():
         # Get the first role name since a user should have at least one role
         role_name = user.role[0].name if user.role else 'user'
         access_token = create_access_token(identity={'username': user.username, 'role': role_name})
-        return jsonify(access_token=access_token), 200
+        return jsonify(access_token=access_token,role=role_name,email=user.email,username=user.username), 200
     return jsonify({"msg": "Invalid credentials"}), 401
 
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-    
     # Check for existing username
     if User.query.filter_by(username=data['username']).first():
         return jsonify({"msg": "Username already exists"}), 400
@@ -425,6 +424,214 @@ def register():
     db.session.commit()
     return jsonify({"msg": "User created successfully"}), 201
 
+# Quiz Attempt API
+@app.route('/submit_quiz', methods=['POST'])
+@jwt_required()
+def submit_quiz():
+    print('hawa me enter')
+    try:
+        print('entered')
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user['username']).first()
+        
+        if not user:
+            print('user not found') 
+            return jsonify({'msg': 'User not found'}), 404
+
+        data = request.get_json()
+        print("Received Data:", data)
+        # Validate required fields
+        required_fields = ['quiz_id', 'score', 'time_spent', 'answers', 
+                         'totalQuestions', 'correctAnswers', 'status']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            print('missing fields')
+            return jsonify({
+                'msg': 'Missing required fields',
+                'missing_fields': missing_fields
+            }), 422
+            
+        # Validate answers format
+        if not isinstance(data['answers'], dict):
+            print('invalid answers format')
+            return jsonify({
+                'msg': 'Invalid answers format. Expected a JSON object.'
+            }), 422
+            
+        # Validate status value
+        if data['status'] not in ['Passed', 'Failed']:
+            print('invalid status')
+            return jsonify({
+                'msg': 'Invalid status value. Must be either "Passed" or "Failed"'
+            }), 422
+
+        attempt = Attempt(
+            user_id=user.id,
+            quiz_id=data['quiz_id'],
+            score=data['score'],
+            timespent=data['time_spent'],
+            submitted_answers=data['answers'], 
+            totalQuestions=data['totalQuestions'],
+            correctAnswers=data['correctAnswers'],
+            status=data['status']
+        )
+        db.session.add(attempt)
+        db.session.commit()
+        print('quiz submitted')
+        return jsonify({
+            'msg': 'Quiz submission successful',
+            'attempt': {
+                'id': attempt.id,
+                'score': attempt.score,
+                'status': attempt.status
+            }
+        }), 201
+
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/get_attempts', methods=['GET'])
+@jwt_required()
+def get_attempts():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user['username']).first()
+        
+        if not user:
+            return jsonify({'msg': 'User not found'}), 404
+
+        attempts = Attempt.query.filter_by(user_id=user.id).order_by(Attempt.timestamp.desc()).all()
+        
+        attempts_data = []
+        for attempt in attempts:
+            quiz = Quiz.query.get(attempt.quiz_id)
+            if quiz:
+                chapter = Chapter.query.get(quiz.chapter_id)
+                subject = Subject.query.get(chapter.subject_id) if chapter else None
+                
+                attempts_data.append({
+                    'id': attempt.id,
+                    'quiz_id': attempt.quiz_id,
+                    'name': quiz.name,
+                    'subject': subject.name if subject else 'Unknown',
+                    'questions': attempt.totalQuestions,
+                    'score': attempt.score,
+                    'date': attempt.timestamp.isoformat(),
+                    'status': attempt.status,
+                    'timespent': attempt.timespent
+                })
+        
+        return jsonify({'history': attempts_data}), 200
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/user/summary', methods=['GET'])
+@jwt_required()
+def get_user_summary():
+    print('entered')
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user['username']).first()
+        
+        if not user:
+            print('user not found')
+            return jsonify({'msg': 'User not found'}), 404
+
+        # Get all user attempts
+        attempts = Attempt.query.filter_by(user_id=user.id).all()
+        
+        # Calculate total quizzes attempted
+        total_quizzes = len(attempts)
+        
+        # Calculate average score
+        if total_quizzes > 0:
+            average_score = sum(attempt.score for attempt in attempts) / total_quizzes
+        else:
+            average_score = 0
+            
+        # Calculate quizzes taken this month
+        from datetime import datetime
+        current_month = datetime.utcnow().month
+        current_year = datetime.utcnow().year
+        quizzes_this_month = sum(
+            1 for attempt in attempts 
+            if attempt.timestamp.month == current_month 
+            and attempt.timestamp.year == current_year
+        )
+        
+        # Calculate subject performance
+        subject_performance = {}
+        for attempt in attempts:
+            quiz = Quiz.query.get(attempt.quiz_id)
+            if quiz:
+                chapter = Chapter.query.get(quiz.chapter_id)
+                if chapter:
+                    subject = Subject.query.get(chapter.subject_id)
+                    if subject:
+                        if subject.name not in subject_performance:
+                            subject_performance[subject.name] = {'total': 0, 'sum': 0}
+                        subject_performance[subject.name]['total'] += 1
+                        subject_performance[subject.name]['sum'] += attempt.score
+        
+        subject_avg_scores = [
+            {
+                'subject': subject,
+                'average_score': data['sum'] / data['total']
+            }
+            for subject, data in subject_performance.items()
+        ]
+        
+        # Find best subject
+        best_subject = max(subject_performance.items(), 
+                         key=lambda x: x[1]['sum'] / x[1]['total'], 
+                         default=(None, None))[0] if subject_performance else None
+        
+        # Calculate monthly activity
+        from collections import defaultdict
+        monthly_activity = defaultdict(int)
+        for attempt in attempts:
+            month_key = attempt.timestamp.strftime('%B %Y')
+            monthly_activity[month_key] += 1
+        
+        monthly_data = [
+            {'month': month, 'count': count}
+            for month, count in monthly_activity.items()
+        ]
+        
+        # Get recent quizzes (last 5 attempts)
+        recent_quizzes = []
+        recent_attempts = Attempt.query.filter_by(user_id=user.id)\
+            .order_by(Attempt.timestamp.desc())\
+            .limit(5).all()
+            
+        for attempt in recent_attempts:
+            quiz = Quiz.query.get(attempt.quiz_id)
+            if quiz:
+                chapter = Chapter.query.get(quiz.chapter_id)
+                subject = Subject.query.get(chapter.subject_id) if chapter else None
+                
+                recent_quizzes.append({
+                    'id': attempt.id,
+                    'name': quiz.name,
+                    'subject': subject.name if subject else 'Unknown',
+                    'questions': attempt.totalQuestions,
+                    'score': attempt.score,
+                    'date': attempt.timestamp.isoformat(),
+                    'status': attempt.status
+                })
+        
+        return jsonify({
+            'total_quizzes': total_quizzes,
+            'average_score': average_score,
+            'quizzes_this_month': quizzes_this_month,
+            'best_subject': best_subject,
+            'subject_performance': subject_avg_scores,
+            'monthly_activity': monthly_data,
+            'recent_quizzes': recent_quizzes
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
 
 if __name__ == '__main__':
     init_database()
