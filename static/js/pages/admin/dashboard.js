@@ -35,7 +35,8 @@ export const AdminDashboard = {
             try {
                 await Promise.all([
                     this.$store.dispatch('fetchSubjects'),
-                    this.$store.dispatch('fetchActiveUsers')
+                    this.$store.dispatch('fetchActiveUsers'),
+                    
                 ]);
                 
                 // Load chapters for each subject
@@ -56,6 +57,9 @@ export const AdminDashboard = {
         },
         navigateToSubjects() {
             this.$router.push('/subjects');
+        },
+        navigateToUsers() {
+            this.$router.push('/users');
         }
     },
     mounted() {
@@ -129,6 +133,9 @@ export const AdminDashboard = {
                             </div>
                             <i class="bi bi-people fs-1 text-warning opacity-25"></i>
                         </div>
+                        <button class="btn btn-sm btn-outline-primary mt-3" @click="navigateToUsers">
+                            View Users
+                        </button>
                     </div>
                 </div>
             </div>

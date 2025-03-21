@@ -3,10 +3,29 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from models import db, User, Role, Subject, Chapter, Quiz, Question, Attempt, func
 from config import Config
 from auth import role_required
+from flask_mail import Mail
+from workers import celery
+import tasks
+
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Initialize extensions
 db.init_app(app)
 jwt = JWTManager(app)
+mail = Mail(app)
+mail.init_app(app)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  
+# Configure Celery
+celery.conf.update(app.config)
+celery.conf.update(
+    broker_connection_retry_on_startup=True,
+    worker_prefetch_multiplier=1,
+    timezone='Asia/Kolkata',  # Set to IST
+    enable_utc=False,  # Disable UTC to use the specified timezone
+    task_track_started=True,
+    task_time_limit=30 * 60  # 30 minutes
+)
 
 def init_database():
     with app.app_context():
@@ -381,6 +400,20 @@ def active_users():
      print(active_users)
      return jsonify(active_users=active_users), 200
 
+@app.route('/users', methods=['GET'])
+@role_required('admin')
+def get_users():
+    try:
+        users = User.query.all()
+        return jsonify(users=[{
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'name': user.name,
+            'roles': [role.name for role in user.role]
+        } for user in users])
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -632,6 +665,16 @@ def get_user_summary():
         
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
+
+@app.route('/hello', methods=['GET','POST'])
+def hello():
+    job=tasks.print_hello.delay('World')
+    return str(job.id), 200
+
+@app.route('/send', methods=['GET'])
+def send_mail():
+    job=tasks.send_daily_quiz_reminder.delay()
+    return job.state, 200
 
 if __name__ == '__main__':
     init_database()

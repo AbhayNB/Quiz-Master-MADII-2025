@@ -330,13 +330,13 @@ const app = Vue.createApp({
             const isAdmin = localStorage.getItem('role') === 'admin';
             const links = [
                 { name: 'Home', path: '#/', icon: 'bi bi-house', active: true },
-                { name: 'Subscriptions', path: '#/subscriptions', icon: 'bi bi-speedometer2', active: true },
+                { name: 'Subscriptions', path: '#/subscriptions', icon: 'bi bi-bell', active: true },
                 { name: 'Scores', path: '#/scores', icon: 'bi bi-graph-up' },
                 { name: 'Summary', path: '#/summary', icon: 'bi bi-columns-gap' }
             ];
             
             if (isAdmin) {
-                links.push({ name: 'Admin', path: '/admin', icon: 'bi bi-gear-fill' });
+                links.push({ name: 'Switch to Admin', path: '/admin', icon: 'bi bi-gear-fill' });
             }
             
             links.push({
@@ -362,7 +362,10 @@ const app = Vue.createApp({
     created() {
         const access_token = localStorage.getItem('access_token');
         if (access_token) {
-            this.$store.commit('setLogged', true);
+          const payload = JSON.parse(atob(access_token.split(".")[1])); // Decode JWT
+          const currentTime = Math.floor(Date.now() / 1000); // Convert to seconds
+          this.$store.commit('setLogged',!(payload.exp < currentTime)); // Return true if expired
+          // this.$store.commit('setLogged', true);
         }
 
     }

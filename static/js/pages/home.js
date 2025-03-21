@@ -12,7 +12,14 @@ export const Home = {
         selectedSubject: 'All',
         selectedChapter: 'All',
         searchQuery: '',
-        subscribedSubjects: JSON.parse(localStorage.getItem('subscribedSubjects') || '[]')
+        subscribedSubjects: JSON.parse(localStorage.getItem('subscribedSubjects') || '[]'),
+        aiQuizForm: {
+          subject: '',
+          chapter: '',
+          numQuestions: 10,
+          duration: 30,
+          difficulty: 'Medium'
+        }
       };
     },
     computed: {
@@ -95,6 +102,28 @@ export const Home = {
       },
       isSubscribed(subjectId) {
         return this.subscribedSubjects.includes(subjectId);
+      },
+      async generateAIQuiz() {
+        try {
+          // TODO: Implement AI quiz generation logic
+          const response = await this.$store.dispatch('generateAIQuiz', this.aiQuizForm);
+          // Close modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('generateAIQuizModal'));
+          modal.hide();
+          // Reset form
+          this.aiQuizForm = {
+            subject: '',
+            chapter: '',
+            numQuestions: 10,
+            duration: 30,
+            difficulty: 'Medium'
+          };
+          // Show success message
+          alert('If time left, will implement it at last');
+        } catch (error) {
+          console.error('Error generating quiz:', error);
+          alert('Failed to generate quiz. Please try again.');
+        }
       }
     },
     created() {
@@ -113,13 +142,20 @@ export const Home = {
               </div>
               <div class="col-md-4">
                 <div class="text-center">
-                  <i class="bi bi-lightbulb display-1"></i>
+                  <i class="bi bi-lightbulb display-1 mb-3"></i>
+                  <div>
+                 <strong> Want something else, Generate Custom Quiz from our AI </strong>
+<br>
+                    <button class="btn btn-light btn-lg" data-bs-toggle="modal" data-bs-target="#generateAIQuizModal">
+                      <i class="bi bi-robot"></i> AI Quiz Generator
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-  
+
         <div class="container">
           <!-- Quick Stats -->
           <div class="row mb-4">
@@ -156,7 +192,7 @@ export const Home = {
                 text-color="text-dark"/>
             </div>
           </div>
-  
+
           <!-- Search and Filter -->
           <div class="card mb-4">
             <div class="card-body">
@@ -199,10 +235,58 @@ export const Home = {
           </div>
   
           <!-- Available Quizzes -->
-          <h3 class="mb-3">Featured Quizzes</h3>
+          <h3 class="mb-3">Available Quizzes</h3>
           <div class="row">
             <div class="col-md-4 mb-4" v-for="quiz in filteredQuizzes" :key="quiz.id">
               <quiz-card :quiz="quiz" :id="quiz.id"/>
+            </div>
+          </div>
+
+          <!-- AI Quiz Generation Modal -->
+          <div class="modal fade" id="generateAIQuizModal" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Generate AI Quiz</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <form @submit.prevent="generateAIQuiz">
+                    <div class="mb-3">
+                      <label class="form-label">Subject</label>
+                      <input type="text" class="form-control" v-model="aiQuizForm.subject" 
+                             placeholder="Enter subject name" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Chapter</label>
+                      <input type="text" class="form-control" v-model="aiQuizForm.chapter" 
+                             placeholder="Enter chapter name" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Number of Questions</label>
+                      <input type="number" class="form-control" v-model="aiQuizForm.numQuestions" min="5" max="50" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Duration (minutes)</label>
+                      <input type="number" class="form-control" v-model="aiQuizForm.duration" min="5" max="120" required>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Difficulty</label>
+                      <select class="form-select" v-model="aiQuizForm.difficulty" required>
+                        <option value="Easy">Easy</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Hard">Hard</option>
+                      </select>
+                    </div>
+                    <div class="modal-footer px-0 pb-0">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                      <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-robot"></i> Generate Quiz
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
         </div>

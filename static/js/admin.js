@@ -12,6 +12,7 @@ import { ChaptersPage } from './pages/admin/chapters.js';
 import { QuizzesPage } from './pages/admin/quizzes.js';
 import { QuestionsPage } from './pages/admin/questions.js';
 import { AnalyticsPage } from './pages/admin/analytics.js';
+import { UsersPage } from './pages/admin/users.js';
 
 // auth
 const LoginPage = {
@@ -187,6 +188,19 @@ const routes = [
                 next('/login');
             }
         }
+    },
+    { 
+        path: '/users', 
+        component: UsersPage,
+        beforeEnter: (to, from, next) => {
+            const loggedIn = store.getters.logged;
+            const role = localStorage.getItem('role');
+            if (loggedIn && role === 'admin') {
+                next();
+            } else {
+                next('/login');
+            }
+        }
     }
 ];
 
@@ -204,8 +218,10 @@ const app = Vue.createApp({
     computed: {
         navLinks() {
             const links = [
+                { name:'Switch to User', path: '/', icon:'bi bi-arrow-repeat' },
                 { name: 'Dashboard', path: '#/', icon: 'bi bi-speedometer2' },
                 { name: 'Subjects', path: '#/subjects', icon: 'bi bi-book' },
+                { name: 'Users', path: '#/users', icon: 'bi bi-people' },
                 { name: 'Analytics', path: '#/analytics', icon: 'bi bi-graph-up' }
             ];
 

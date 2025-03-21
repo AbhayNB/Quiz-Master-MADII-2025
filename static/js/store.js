@@ -8,11 +8,15 @@ export const store = Vuex.createStore({
             chapters: {},  // Organized by subjectId
             quizzes: {},  // Organized by chapterId
             questions: {}, // Organized by quizId
+            users: [],
             activeUsers: 0,
             logged: false
         }
     },
     mutations: {
+        setUsers(state,users){
+            state.users=users;
+        },
         setChapters(state, { subjectId, chapters }) {
             state.chapters[subjectId] = chapters;
         },
@@ -105,6 +109,11 @@ export const store = Vuex.createStore({
         }
     },
     actions: {
+        // Fetching users
+        async fetchUsers({commit}) {
+            const data= await api.auth.getAllUsers();
+            commit('setUsers',data.users)
+        },
         // Subject actions
         async fetchSubjects({ commit }) {
             try {
@@ -335,6 +344,7 @@ export const store = Vuex.createStore({
         }
     },
     getters: {
+        users: state => state.users,
         subjects: state => state.subjects,
         chapters: state => subjectId => state.chapters[subjectId] || [],
         quizzes: state => chapterId => state.quizzes[chapterId] || [],

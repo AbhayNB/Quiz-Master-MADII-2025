@@ -224,6 +224,13 @@ const authAPI = {
         });
         if (!response.ok) throw new Error('Failed to fetch active users');
         return response.json();
+    },
+    getAllUsers: async () => {
+        const response = await fetch('/users', {
+            headers: getHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to fetch users');
+        return response.json();
     }
 };
 
