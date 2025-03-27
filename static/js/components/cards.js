@@ -102,6 +102,12 @@ export const QuizCard = {
           <span class="badge bg-secondary ms-2">
             <i class="bi bi-clock-fill me-1"></i> {{ quiz.duration }} minutes
           </span>
+          <span class="badge bg-primary ms-2">
+            <i class="bi bi-book me-1"></i> {{ quiz.subject }}
+          </span>
+          <span class="badge bg-info ms-2">
+            <i class="bi bi-journal me-1"></i> {{ quiz.chapter }}
+          </span>
         </div>
         <div v-if="isUpcoming" class="text-muted small mb-2">
           <i class="bi bi-calendar-event me-1"></i>

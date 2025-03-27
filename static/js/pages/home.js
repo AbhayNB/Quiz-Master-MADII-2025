@@ -66,8 +66,11 @@ export const HomePage = {
         return this.allQuizzes.filter(quiz => {
           const matchesSubject = this.selectedSubject === 'All' || quiz.subject === this.selectedSubject;
           const matchesChapter = this.selectedChapter === 'All' || quiz.chapter === this.selectedChapter;
-          const matchesSearch = quiz.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                              quiz.description.toLowerCase().includes(this.searchQuery.toLowerCase());
+          const searchQuery = this.searchQuery.toLowerCase();
+          const matchesSearch = quiz.name.toLowerCase().includes(searchQuery) ||
+                              quiz.description.toLowerCase().includes(searchQuery) ||
+                              quiz.subject.toLowerCase().includes(searchQuery) ||
+                              quiz.chapter.toLowerCase().includes(searchQuery);
           return matchesSubject && matchesChapter && matchesSearch;
         });
       },
@@ -259,7 +262,7 @@ export const HomePage = {
                   <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
                     <input type="text" class="form-control" v-model="searchQuery" 
-                           placeholder="Search quizzes by name or description...">
+                           placeholder="Search by quiz name, description, subject or chapter...">
                   </div>
                 </div>
               </div>

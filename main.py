@@ -238,7 +238,10 @@ def create_quiz():
 @app.route('/quizzes/<int:chapter_id>', methods=['GET'])
 def get_quizzes(chapter_id):
     try:
-        quizzes = Quiz.query.filter_by(chapter_id=chapter_id).all() 
+        quizzes = Quiz.query.filter_by(chapter_id=chapter_id).all()
+        chapter = Chapter.query.get(chapter_id)
+        subject = Subject.query.get(chapter.subject_id) if chapter else None
+        
         return jsonify(quizzes=[{
             'id': quiz.id,
             'name': quiz.name,
@@ -248,7 +251,9 @@ def get_quizzes(chapter_id):
             'chapter_id': quiz.chapter_id,
             'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
             'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
-            'questionCount': len(quiz.questions)
+            'questionCount': len(quiz.questions),
+            'subject': subject.name if subject else 'Unknown',
+            'chapter': chapter.name if chapter else 'Unknown'
         } for quiz in quizzes])
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
@@ -306,6 +311,9 @@ def get_quiz(quiz_id):
             print('error for 1 quiz') 
             return jsonify({'msg': 'Quiz not found'}), 404
         
+        chapter = Chapter.query.get(quiz.chapter_id)
+        subject = Subject.query.get(chapter.subject_id) if chapter else None
+        
         return jsonify({
             'id': quiz.id,
             'name': quiz.name,
@@ -315,7 +323,9 @@ def get_quiz(quiz_id):
             'chapter_id': quiz.chapter_id,
             'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
             'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
-            'questionCount': len(quiz.questions)
+            'questionCount': len(quiz.questions),
+            'subject': subject.name if subject else 'Unknown',
+            'chapter': chapter.name if chapter else 'Unknown'
         })
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
@@ -340,6 +350,9 @@ def get_single_quiz(quiz_id):
         if not quiz:
             return jsonify({'msg': 'Quiz not found'}), 404
         
+        chapter = Chapter.query.get(quiz.chapter_id)
+        subject = Subject.query.get(chapter.subject_id) if chapter else None
+        
         return jsonify({
             'id': quiz.id,
             'name': quiz.name,
@@ -349,7 +362,9 @@ def get_single_quiz(quiz_id):
             'chapter_id': quiz.chapter_id,
             'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
             'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
-            'questionCount': len(quiz.questions)
+            'questionCount': len(quiz.questions),
+            'subject': subject.name if subject else 'Unknown',
+            'chapter': chapter.name if chapter else 'Unknown'
         })
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
