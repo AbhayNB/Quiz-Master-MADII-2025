@@ -1,11 +1,24 @@
 from celery_config import celery, flask_app, mail
 from flask_mail import Message
 from datetime import datetime, timedelta
-from models import User, Quiz, Attempt, Subject, Chapter
-from flask import current_app
+from models import User, Quiz, Attempt, Subject, Chapter, db
+from flask import current_app, send_file
 import json
 from sqlalchemy import func
-from models import db
+import io
+import csv
+
+# Initialize database for Celery worker
+def init_celery_db():
+    with flask_app.app_context():
+        try:
+            db.create_all()
+            print("Database tables created successfully in Celery context")
+        except Exception as e:
+            print(f"Error creating database tables: {str(e)}")
+
+init_celery_db()
+
 # Register tasks with the Celery instance
 @celery.task(name='tasks.print_hello')
 def print_hello(name):
@@ -101,7 +114,7 @@ def generate_monthly_performance_report():
                         recipients=[user.email],
                         body=f"""Hi {user.username},
 
-Here's your performance report for {last_month.strftime("%B %Y")}:
+Here's your performance report for {last_month.strftime("%B %Y")}: 
 
 Total Quizzes Attempted: {total_quizzes}
 Average Score: {avg_score:.1f}%
@@ -122,3 +135,62 @@ Quiz Master Team"""
             print(f"Error in generate_monthly_performance_report: {str(e)}")
             return False
         return True
+
+@celery.task(name='tasks.export_quiz_history', bind=True)
+def export_quiz_history(self, user_id):
+    """Generate CSV export of quiz history for a user"""
+    with flask_app.app_context():
+        try:
+            print(f"Starting export for user {user_id}")
+            # Convert string ID to integer
+            user = User.query.get(int(user_id))
+            if not user:
+                print(f"User {user_id} not found")
+                return {'status': 'error', 'error': 'User not found'}
+
+            attempts = Attempt.query.filter_by(user_id=user.id).order_by(Attempt.timestamp.desc()).all()
+            print(f"Found {len(attempts)} attempts for user")
+            
+            # Prepare CSV data
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['Quiz Name', 'Subject', 'Questions', 'Score', 'Time Spent (seconds)', 'Date', 'Status'])
+            
+            # Write data
+            for attempt in attempts:
+                quiz = Quiz.query.get(attempt.quiz_id)
+                if quiz:
+                    chapter = Chapter.query.get(quiz.chapter_id)
+                    subject = Subject.query.get(chapter.subject_id) if chapter else None
+                    
+                    writer.writerow([
+                        quiz.name,
+                        subject.name if subject else 'Unknown',
+                        attempt.totalQuestions,
+                        attempt.score,
+                        attempt.timespent,
+                        attempt.timestamp.isoformat(),
+                        attempt.status
+                    ])
+            
+            # Get the CSV content
+            output.seek(0)
+            csv_content = output.getvalue()
+            
+            # Store the CSV content in Redis
+            key = f'csv_export_{self.request.id}'
+            print(f"Storing CSV with key: {key}")
+            celery.backend.set(
+                key,
+                csv_content.encode('utf-8'),
+                timeout=3600  # expire after 1 hour
+            )
+            
+            # Return task ID to indicate completion
+            return {'status': 'completed', 'task_id': self.request.id}
+            
+        except Exception as e:
+            print(f"Error in export_quiz_history: {str(e)}")
+            return {'status': 'error', 'error': str(e)}

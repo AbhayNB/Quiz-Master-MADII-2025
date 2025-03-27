@@ -14,6 +14,8 @@ def create_app():
     app.config.from_object(Config)
     db.init_app(app)
     mail.init_app(app)
+    with app.app_context():
+        db.create_all()  # Create database tables
     return app
 
 flask_app = create_app()

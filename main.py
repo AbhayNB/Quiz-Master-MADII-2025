@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, User, Role, Subject, Chapter, Quiz, Question, Attempt, func
 from config import Config
@@ -187,6 +187,12 @@ def delete_chapter(chapter_id):
 def create_quiz():
     try:
         data = request.get_json()
+        
+        # Check if chapter exists
+        chapter = Chapter.query.get(data['chapter_id'])
+        if not chapter:
+            return jsonify({'msg': 'Chapter not found'}), 404
+            
         if Quiz.query.filter_by(name=data['name'], chapter_id=data['chapter_id']).first():
             return jsonify({'msg': 'Quiz already exists in this chapter'}), 409
             
@@ -732,6 +738,69 @@ def get_user_summary():
             'recent_quizzes': recent_quizzes
         }), 200
         
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/export_attempts_csv', methods=['POST'])
+@jwt_required()
+def export_attempts_csv():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user['username']).first()
+        
+        if not user:
+            return jsonify({'msg': 'User not found'}), 404
+
+        print(f"Starting export for user {user.username} (ID: {user.id})")
+        # Start the export task with string ID
+        task = tasks.export_quiz_history.delay(str(user.id))
+        
+        return jsonify({
+            'task_id': task.id,
+            'status': 'processing'
+        }), 202
+
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
+
+@app.route('/get_export/<task_id>', methods=['GET'])
+@jwt_required()
+def get_export(task_id):
+    try:
+        # Check if the task is complete
+        task = tasks.export_quiz_history.AsyncResult(task_id)
+        
+        if task.ready():
+            result = task.get()
+            
+            # Check for error status in result
+            if isinstance(result, dict):
+                if result['status'] == 'completed':
+                    # Get the CSV content from Redis
+                    csv_content = celery.backend.get(f'csv_export_{task_id}')
+                    if csv_content:
+                        return Response(
+                            csv_content.decode('utf-8'),
+                            mimetype='text/csv',
+                            headers={
+                                'Content-Disposition': 'attachment; filename=quiz_history.csv'
+                            }
+                        )
+                elif result['status'] == 'error':
+                    # Return the error message with a 400 status code
+                    return jsonify({
+                        'msg': result['error'],
+                        'status': 'error'
+                    }), 400
+            
+            return jsonify({'msg': 'Export data not found'}), 404
+        
+        # Task is not ready yet
+        return jsonify({
+            'status': task.status,
+            'ready': False
+        }), 202
+
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
 
