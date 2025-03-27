@@ -10,7 +10,12 @@ export const store = Vuex.createStore({
             questions: {}, // Organized by quizId
             users: [],
             activeUsers: 0,
-            logged: false
+            logged: false,
+            analytics: {
+                dailyActivity: [],
+                userSummary: null,
+                quizHistory: []
+            }
         }
     },
     mutations: {
@@ -106,6 +111,16 @@ export const store = Vuex.createStore({
         },
         setLogged(state, status) {
             state.logged = status;
+        },
+        // New analytics mutations
+        setDailyActivity(state, data) {
+            state.analytics.dailyActivity = data;
+        },
+        setUserSummary(state, data) {
+            state.analytics.userSummary = data;
+        },
+        setQuizHistory(state, data) {
+            state.analytics.quizHistory = data;
         }
     },
     actions: {
@@ -117,8 +132,13 @@ export const store = Vuex.createStore({
         // Subject actions
         async fetchSubjects({ commit }) {
             try {
-                const data = await api.subject.getAll();
-                commit('setSubjects', data.subjects);
+                const response = await api.subject.getAll();
+                if (response && response.subjects) {
+                    commit('setSubjects', response.subjects);
+                } else {
+                    console.error('Invalid response format from fetchSubjects:', response);
+                    throw new Error('Invalid response format from server');
+                }
             } catch (error) {
                 console.error('Error fetching subjects:', error);
                 throw error;
@@ -212,10 +232,14 @@ export const store = Vuex.createStore({
         },
         async fetchQuiz({ commit }, id) {
             try {
+                if (!id || isNaN(id)) {
+                    throw new Error('Invalid quiz ID');
+                }
                 const data = await api.quiz.getOne(id);
-                console.log(data);
+                if (!data) {
+                    throw new Error('Quiz not found');
+                }
                 return data;
-
             } catch (error) {
                 console.error('Error fetching quiz:', error);
                 throw error;
@@ -316,6 +340,7 @@ export const store = Vuex.createStore({
         async fetchQuizHistory({ commit }) {
             try {
                 const response = await api.quiz.getAttempts();
+                commit('setQuizHistory', response);
                 return response;
             } catch (error) {
                 console.error('Error fetching quiz attempts:', error);
@@ -325,6 +350,7 @@ export const store = Vuex.createStore({
         async fetchUserSummary({ commit }) {
             try {
                 const response = await api.user.getSummary();
+                commit('setUserSummary', response);
                 return response;
             } catch (error) {
                 console.error('Error fetching user summary:', error);
@@ -350,6 +376,10 @@ export const store = Vuex.createStore({
         quizzes: state => chapterId => state.quizzes[chapterId] || [],
         questions: state => quizId => state.questions[quizId] || [],
         activeUsers: state => state.activeUsers,
-        logged: state => state.logged
+        logged: state => state.logged,
+        // New analytics getters
+        dailyActivity: state => state.analytics.dailyActivity,
+        userSummary: state => state.analytics.userSummary,
+        quizHistory: state => state.analytics.quizHistory
     }
 });

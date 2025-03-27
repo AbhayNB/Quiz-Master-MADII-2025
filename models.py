@@ -82,6 +82,8 @@ class Quiz(db.Model):
     difficulty = db.Column(Enum('Easy', 'Medium', 'Hard', name='difficulty_enum'), nullable=True)
     duration = db.Column(db.Integer, nullable=False)
     chapter_id = db.Column(db.Integer, db.ForeignKey('chapter.id'), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=True)
+    end_time = db.Column(db.DateTime, nullable=True)
     questions = db.relationship('Question', backref='quiz', lazy=True)
     
 

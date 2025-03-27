@@ -15,7 +15,9 @@ export const QuizzesPage = {
                 description: '',
                 difficulty: 'Medium',
                 duration: 30,
-                chapter_id: null
+                chapter_id: null,
+                start_time: '',
+                end_time: ''
             },
             editingQuiz: null,
             loading: false,
@@ -40,13 +42,26 @@ export const QuizzesPage = {
         async createQuiz() {
             try {
                 this.newQuiz.chapter_id = parseInt(this.id);
+                // Convert date strings to proper format
+                if (this.newQuiz.start_time) {
+                    const startDate = new Date(this.newQuiz.start_time);
+                    // Remove milliseconds and timezone
+                    this.newQuiz.start_time = startDate.toISOString().split('.')[0];
+                }
+                if (this.newQuiz.end_time) {
+                    const endDate = new Date(this.newQuiz.end_time);
+                    // Remove milliseconds and timezone
+                    this.newQuiz.end_time = endDate.toISOString().split('.')[0];
+                }
                 await this.$store.dispatch('createQuiz', this.newQuiz);
                 this.newQuiz = {
                     name: '',
                     description: '',
                     difficulty: 'medium',
                     duration: 30,
-                    chapter_id: null
+                    chapter_id: null,
+                    start_time: '',
+                    end_time: ''
                 };
                 // Close modal
                 document.getElementById('addQuizModal').querySelector('[data-bs-dismiss="modal"]').click();
@@ -61,14 +76,19 @@ export const QuizzesPage = {
             if (!this.editingQuiz) return;
             
             try {
+                // Convert date strings to proper format
+                const quizData = {
+                    name: this.editingQuiz.name,
+                    description: this.editingQuiz.description,
+                    difficulty: this.editingQuiz.difficulty,
+                    duration: this.editingQuiz.duration,
+                    start_time: this.editingQuiz.start_time ? new Date(this.editingQuiz.start_time).toISOString().split('.')[0] : null,
+                    end_time: this.editingQuiz.end_time ? new Date(this.editingQuiz.end_time).toISOString().split('.')[0] : null
+                };
+                
                 await this.$store.dispatch('updateQuiz', {
                     id: this.editingQuiz.id,
-                    quiz: {
-                        name: this.editingQuiz.name,
-                        description: this.editingQuiz.description,
-                        difficulty: this.editingQuiz.difficulty,
-                        duration: this.editingQuiz.duration
-                    },
+                    quiz: quizData,
                     chapterId: parseInt(this.id)
                 });
                 this.editingQuiz = null;
@@ -133,7 +153,7 @@ export const QuizzesPage = {
                     <div class="card-body">
                         <h5 class="card-title">{{ quiz.name }}</h5>
                         <p class="card-text">{{ quiz.description }}</p>
-                        <div class="mt-2 d-flex gap-2">
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
                             <span :class="['badge', getDifficultyBadgeClass(quiz.difficulty)]">
                                 {{ quiz.difficulty }}
                             </span>
@@ -143,6 +163,10 @@ export const QuizzesPage = {
                             <span class="badge bg-primary">
                                 {{ quiz.questionCount }} Questions
                             </span>
+                        </div>
+                        <div class="mt-2 small text-muted" v-if="quiz.start_time || quiz.end_time">
+                            <div v-if="quiz.start_time">Start: {{ new Date(quiz.start_time).toLocaleString() }}</div>
+                            <div v-if="quiz.end_time">End: {{ new Date(quiz.end_time).toLocaleString() }}</div>
                         </div>
                     </div>
                     <div class="card-footer bg-transparent border-0">
@@ -192,6 +216,14 @@ export const QuizzesPage = {
                                 <label class="form-label">Duration (minutes)</label>
                                 <input type="number" class="form-control" v-model="newQuiz.duration" min="1" required>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">Start Time (Optional)</label>
+                                <input type="datetime-local" class="form-control" v-model="newQuiz.start_time">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">End Time (Optional)</label>
+                                <input type="datetime-local" class="form-control" v-model="newQuiz.end_time">
+                            </div>
                             <div class="modal-footer px-0 pb-0">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                 <button type="submit" class="btn btn-primary" :disabled="loading">
@@ -233,6 +265,14 @@ export const QuizzesPage = {
                             <div class="mb-3">
                                 <label class="form-label">Duration (minutes)</label>
                                 <input type="number" class="form-control" v-model="editingQuiz.duration" min="1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Start Time (Optional)</label>
+                                <input type="datetime-local" class="form-control" v-model="editingQuiz.start_time">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">End Time (Optional)</label>
+                                <input type="datetime-local" class="form-control" v-model="editingQuiz.end_time">
                             </div>
                             <div class="modal-footer px-0 pb-0">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

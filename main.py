@@ -5,6 +5,7 @@ from config import Config
 from auth import role_required
 from flask_mail import Mail
 from workers import celery
+from datetime import datetime  # Add this import
 import tasks
 
 app = Flask(__name__)
@@ -187,28 +188,35 @@ def create_quiz():
     try:
         data = request.get_json()
         if Quiz.query.filter_by(name=data['name'], chapter_id=data['chapter_id']).first():
-            return jsonify({'msg': 'Quiz already exists in this chapter'})
+            return jsonify({'msg': 'Quiz already exists in this chapter'}), 409
+            
+        # Parse datetime strings if they exist
+        start_time = None
+        end_time = None
+        if data.get('start_time'):
+            try:
+                start_time = datetime.fromisoformat(data['start_time'])
+            except ValueError as e:
+                return jsonify({'msg': f'Invalid start_time format: {str(e)}'}), 400
+                
+        if data.get('end_time'):
+            try:
+                end_time = datetime.fromisoformat(data['end_time'])
+            except ValueError as e:
+                return jsonify({'msg': f'Invalid end_time format: {str(e)}'}), 400
+            
         quiz = Quiz(
             name=data['name'],
             description=data['description'],
             difficulty=data['difficulty'],
             duration=data['duration'],
-            chapter_id=data['chapter_id']
+            chapter_id=data['chapter_id'],
+            start_time=start_time,
+            end_time=end_time
         )
         db.session.add(quiz)
         db.session.commit()
-        print({
-            'msg': 'Quiz created successfully', 
-            'quiz': {
-                'id': quiz.id,
-                'name': quiz.name,
-                'description': quiz.description,
-                'difficulty': quiz.difficulty,
-                'duration': quiz.duration,
-                'chapter_id': quiz.chapter_id,
-                'questionCount': 0
-            }
-        })
+        
         return jsonify({
             'msg': 'Quiz created successfully', 
             'quiz': {
@@ -218,10 +226,13 @@ def create_quiz():
                 'difficulty': quiz.difficulty,
                 'duration': quiz.duration,
                 'chapter_id': quiz.chapter_id,
+                'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
+                'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
                 'questionCount': 0
             }
-        })
+        }), 201
     except Exception as e:
+        db.session.rollback()
         return jsonify({'msg': str(e)}), 500
 
 @app.route('/quizzes/<int:chapter_id>', methods=['GET'])
@@ -235,6 +246,8 @@ def get_quizzes(chapter_id):
             'difficulty': quiz.difficulty,
             'duration': quiz.duration,
             'chapter_id': quiz.chapter_id,
+            'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
+            'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
             'questionCount': len(quiz.questions)
         } for quiz in quizzes])
     except Exception as e:
@@ -246,14 +259,27 @@ def update_quiz(quiz_id):
         quiz = Quiz.query.get(quiz_id)
         if not quiz:
             return jsonify({'msg': 'Quiz not found'}), 404
-        
+
         data = request.get_json()
-        quiz.name = data.get('name', quiz.name)
-        quiz.description = data.get('description', quiz.description)
-        quiz.difficulty = data.get('difficulty', quiz.difficulty)
-        quiz.duration = data.get('duration', quiz.duration)
         
+        # Parse datetime strings if they exist
+        if data.get('start_time'):
+            try:
+                data['start_time'] = datetime.fromisoformat(data['start_time'])
+            except ValueError as e:
+                return jsonify({'msg': f'Invalid start_time format: {str(e)}'}), 400
+                
+        if data.get('end_time'):
+            try:
+                data['end_time'] = datetime.fromisoformat(data['end_time'])
+            except ValueError as e:
+                return jsonify({'msg': f'Invalid end_time format: {str(e)}'}), 400
+            
+        for key, value in data.items():
+            setattr(quiz, key, value)
+            
         db.session.commit()
+        
         return jsonify({
             'msg': 'Quiz updated successfully',
             'quiz': {
@@ -263,10 +289,13 @@ def update_quiz(quiz_id):
                 'difficulty': quiz.difficulty,
                 'duration': quiz.duration,
                 'chapter_id': quiz.chapter_id,
+                'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
+                'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
                 'questionCount': len(quiz.questions)
             }
         })
     except Exception as e:
+        db.session.rollback()
         return jsonify({'msg': str(e)}), 500
 
 @app.route('/get_quiz/<int:quiz_id>', methods=['GET'])
@@ -284,6 +313,8 @@ def get_quiz(quiz_id):
             'difficulty': quiz.difficulty,
             'duration': quiz.duration,
             'chapter_id': quiz.chapter_id,
+            'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
+            'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
             'questionCount': len(quiz.questions)
         })
     except Exception as e:
@@ -302,6 +333,26 @@ def delete_quiz(quiz_id):
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
 
+@app.route('/quiz/<int:quiz_id>', methods=['GET'])
+def get_single_quiz(quiz_id):
+    try:
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'msg': 'Quiz not found'}), 404
+        
+        return jsonify({
+            'id': quiz.id,
+            'name': quiz.name,
+            'description': quiz.description,
+            'difficulty': quiz.difficulty,
+            'duration': quiz.duration,
+            'chapter_id': quiz.chapter_id,
+            'start_time': quiz.start_time.isoformat() if quiz.start_time else None,
+            'end_time': quiz.end_time.isoformat() if quiz.end_time else None,
+            'questionCount': len(quiz.questions)
+        })
+    except Exception as e:
+        return jsonify({'msg': str(e)}), 500
 
 # Questions API's
 
@@ -461,39 +512,42 @@ def register():
 @app.route('/submit_quiz', methods=['POST'])
 @jwt_required()
 def submit_quiz():
-    print('hawa me enter')
     try:
-        print('entered')
         current_user = get_jwt_identity()
         user = User.query.filter_by(username=current_user['username']).first()
         
         if not user:
-            print('user not found') 
             return jsonify({'msg': 'User not found'}), 404
 
         data = request.get_json()
-        print("Received Data:", data)
-        # Validate required fields
+        quiz = Quiz.query.get(data['quiz_id'])
+        
+        if not quiz:
+            return jsonify({'msg': 'Quiz not found'}), 404
+            
+        # Check if quiz is within valid time window
+        now = datetime.utcnow()
+        if quiz.start_time and now < quiz.start_time:
+            return jsonify({'msg': 'Quiz has not started yet'}), 403
+        if quiz.end_time and now > quiz.end_time:
+            return jsonify({'msg': 'Quiz has already ended'}), 403
+
+        # Continue with existing validation and submission logic
         required_fields = ['quiz_id', 'score', 'time_spent', 'answers', 
                          'totalQuestions', 'correctAnswers', 'status']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
-            print('missing fields')
             return jsonify({
                 'msg': 'Missing required fields',
                 'missing_fields': missing_fields
             }), 422
             
-        # Validate answers format
         if not isinstance(data['answers'], dict):
-            print('invalid answers format')
             return jsonify({
                 'msg': 'Invalid answers format. Expected a JSON object.'
             }), 422
             
-        # Validate status value
         if data['status'] not in ['Passed', 'Failed']:
-            print('invalid status')
             return jsonify({
                 'msg': 'Invalid status value. Must be either "Passed" or "Failed"'
             }), 422
@@ -510,7 +564,7 @@ def submit_quiz():
         )
         db.session.add(attempt)
         db.session.commit()
-        print('quiz submitted')
+        
         return jsonify({
             'msg': 'Quiz submission successful',
             'attempt': {

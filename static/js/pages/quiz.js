@@ -41,27 +41,59 @@ export const QuizPage = {
     },
     isLastQuestion() {
       return this.currentQuestionIndex === this.questions.length - 1;
+    },
+    isQuizAvailable() {
+      if (!this.quiz) return false;
+      const now = new Date();
+      
+      if (this.quiz.start_time && new Date(this.quiz.start_time) > now) {
+        this.error = `This quiz will be available from ${new Date(this.quiz.start_time).toLocaleString()}`;
+        return false;
+      }
+      
+      if (this.quiz.end_time && new Date(this.quiz.end_time) < now) {
+        this.error = `This quiz expired on ${new Date(this.quiz.end_time).toLocaleString()}`;
+        return false;
+      }
+      
+      return true;
     }
   },
   methods: {
     async loadQuiz() {
       try {
         this.loading = true;
-        const quiz = await this.$store.dispatch('fetchQuiz', parseInt(this.id));
-        this.quiz = quiz;
         const quizId = parseInt(this.id);
-        console.log(quizId);
+        
         if (isNaN(quizId)) {
           throw new Error('Invalid quiz ID');
         }
-        console.log(this.quiz);
-        await this.$store.dispatch('fetchQuestions', parseInt(this.id));
-        this.questions = this.$store.getters.questions(parseInt(this.id));
-        console.log(this.questions);
+
+        const quiz = await this.$store.dispatch('fetchQuiz', quizId);
+        
+        if (!quiz) {
+          throw new Error('Quiz not found');
+        }
+
+        this.quiz = quiz;
+        
+        if (!this.isQuizAvailable) {
+          this.loading = false;
+          return;
+        }
+        
+        await this.$store.dispatch('fetchQuestions', quizId);
+        this.questions = this.$store.getters.questions(quizId);
+        
+        if (!this.questions || this.questions.length === 0) {
+          throw new Error('No questions found for this quiz');
+        }
+
         this.timeLeft = this.quiz.duration * 60; // Convert minutes to seconds
         this.startTimer();
       } catch (error) {
         this.error = error.message;
+        console.error('Error loading quiz:', error);
       } finally {
         this.loading = false;
       }
@@ -173,6 +205,10 @@ export const QuizPage = {
         </div>
 
         <div v-else-if="error" class="alert alert-danger">
+          {{ error }}
+        </div>
+
+        <div v-else-if="!isQuizAvailable" class="alert alert-info" role="alert">
           {{ error }}
         </div>
 

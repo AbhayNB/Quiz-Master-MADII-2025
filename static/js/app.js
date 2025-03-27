@@ -5,7 +5,7 @@ import {store} from './store.js';
 import { Navbar } from './components/navbar.js';
 
 // Pages
-import { Home } from './pages/home.js';
+import { HomePage } from './pages/home.js';  // Fixed import name
 import { SummaryPage } from './pages/summary.js';
 import { QuizPage } from './pages/quiz.js';
 import { ScorePage } from './pages/score.js';
@@ -274,7 +274,7 @@ const Subscriptions = {
 const routes = [
   { 
     path: '/', 
-    component: Home,
+    component: HomePage,  // Fixed component name
     beforeEnter: (to, from, next) => {
       const loggedIn = store.getters.logged;
       if (loggedIn) {

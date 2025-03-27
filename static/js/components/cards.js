@@ -72,42 +72,49 @@ export const QuizCard = {
     quiz: {
       type: Object,
       required: true
-    },
-    id: {
-      type: Number,
-      required: true
-    },
+    }
   },
-  methods: {
-    getDifficultyBadgeClass(difficulty) {
-      return {
-        'bg-success': difficulty === 'Easy',
-        'bg-warning': difficulty === 'Medium',
-        'bg-danger': difficulty === 'Hard'
-      };
+  computed: {
+    isUpcoming() {
+      if (!this.quiz.start_time) return false;
+      const now = new Date();
+      const start = new Date(this.quiz.start_time);
+      return start > now;
+    },
+    startTimeFormatted() {
+      if (!this.quiz.start_time) return '';
+      return new Date(this.quiz.start_time).toLocaleString();
     }
   },
   template: `
-    <div class="card h-100 shadow-sm">
+    <div class="card h-100">
       <div class="card-body">
-        <h5 class="card-title text-primary">{{ quiz.name }}</h5>
-        <h6 class="card-subtitle mb-2 text-muted">
-          <i class="bi bi-bookmark-fill"></i> {{ quiz.subject }} - {{ quiz.chapter }}
-        </h6>
+        <h5 class="card-title">{{ quiz.name }}</h5>
         <p class="card-text">{{ quiz.description }}</p>
         <div class="mb-3">
-          <span class="badge" :class="getDifficultyBadgeClass(quiz.difficulty)">
-            <i class="bi bi-star-fill me-1"></i> {{ quiz.difficulty }}
-          </span>
-          <span class="badge bg-info ms-2">
-            <i class="bi bi-question-circle-fill me-1"></i> {{ quiz.questions }} Questions
+          <span class="badge" :class="{
+            'bg-success': quiz.difficulty.toLowerCase() === 'easy',
+            'bg-warning': quiz.difficulty.toLowerCase() === 'medium',
+            'bg-danger': quiz.difficulty.toLowerCase() === 'hard'
+          }">
+            {{ quiz.difficulty }}
           </span>
           <span class="badge bg-secondary ms-2">
-            <i class="bi bi-clock-fill me-1"></i> {{ quiz.duration }}
+            <i class="bi bi-clock-fill me-1"></i> {{ quiz.duration }} minutes
           </span>
         </div>
-        <button class="btn btn-primary w-100" @click="$router.push('/quiz/' + id)">
-          <i class="bi bi-play-fill"></i> Start Quiz
+        <div v-if="isUpcoming" class="text-muted small mb-2">
+          <i class="bi bi-calendar-event me-1"></i>
+          Available from: {{ startTimeFormatted }}
+        </div>
+        <button 
+          class="btn w-100" 
+          :class="isUpcoming ? 'btn-secondary' : 'btn-primary'"
+          :disabled="isUpcoming"
+          @click="$router.push('/quiz/' + quiz.id)"
+        >
+          <i class="bi" :class="isUpcoming ? 'bi-clock-history' : 'bi-play-fill'"></i>
+          {{ isUpcoming ? 'Coming Soon' : 'Start Quiz' }}
         </button>
       </div>
     </div>

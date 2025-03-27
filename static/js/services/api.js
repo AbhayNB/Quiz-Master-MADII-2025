@@ -106,7 +106,7 @@ const quizAPI = {
         return response.json();
     },
 
-    create: async (quiz) => {
+    create: async (chapterId, quiz) => {
         const response = await fetch('/create_quiz', {
             method: 'POST',
             headers: getHeaders(),
@@ -139,15 +139,28 @@ const quizAPI = {
         const response = await fetch(`/get_quiz/${id}`, {
             headers: getHeaders()
         });
-        if (!response.ok) throw new Error('Failed to fetch quiz');
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.msg || 'Failed to fetch quiz');
+        }
         return response.json();
     },
 
+    submit: async (submission) => {
+        const response = await fetch('/submit_quiz', {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(submission)
+        });
+        if (!response.ok) throw new Error('Failed to submit quiz');
+        return response.json();
+    },
+    
     getAttempts: async () => {
         const response = await fetch('/get_attempts', {
             headers: getHeaders()
         });
-        if (!response.ok) throw new Error('Failed to fetch attempts');
+        if (!response.ok) throw new Error('Failed to fetch quiz history');
         return response.json();
     }
 };
