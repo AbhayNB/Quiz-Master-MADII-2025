@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, Response
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, User, Role, Subject, Chapter, Quiz, Question, Attempt, func
 from config import Config
-from auth import role_required, cache_response, limiter
+from auth import role_required, cache_response, limiter, invalidate_cache_pattern
 from flask_mail import Mail
 from workers import celery
 from datetime import datetime
@@ -79,17 +79,25 @@ def create_subject():
     )
     db.session.add(subject)
     db.session.commit()
+    invalidate_cache_pattern("get_subjects:*")
     return jsonify({'msg': 'Subject created successfully', 'subject': subject.to_dict()})
 
 @app.route('/subjects', methods=['GET'])
 @cache_response(timeout=600)  # Cache for 10 minutes
+@limiter.limit("30 per minute")  # Add reasonable rate limit for subjects endpoint
 def get_subjects():
     try:
         subjects = Subject.query.all()
         return jsonify(subjects=[subject.to_dict() for subject in subjects])
     except Exception as e:
-        print(e)
         return jsonify({'msg': str(e)}), 500
+
+@app.errorhandler(429)  # Add specific handler for rate limit errors
+def ratelimit_handler(e):
+    return jsonify({
+        'msg': 'Too many requests. Please try again later.',
+        'retry_after': e.description
+    }), 429
 
 @app.route('/delete_subject/<int:subject_id>', methods=['DELETE'])
 def delete_subject(subject_id):
@@ -100,6 +108,10 @@ def delete_subject(subject_id):
 
     db.session.delete(subject)
     db.session.commit()
+    
+    # Invalidate subject and chapter caches
+    invalidate_cache_pattern("get_subjects:*")
+    invalidate_cache_pattern(f"get_chapters:*{subject_id}*")
     return jsonify({'message': 'Subject deleted successfully'}), 200
 
 @app.route('/update_subject/<int:subject_id>', methods=['PUT'])
@@ -113,6 +125,7 @@ def update_subject(subject_id):
     subject.description = data.get('description', subject.description)
     
     db.session.commit()
+    invalidate_cache_pattern("get_subjects:*")
     return jsonify({
         'msg': 'Subject updated successfully',
         'subject': subject.to_dict()
@@ -152,6 +165,8 @@ def create_chapter():
     )
     db.session.add(chapter)
     db.session.commit()
+    # Invalidate chapter cache
+    invalidate_cache_pattern(f"get_chapters:*{data['subject_id']}*")
     return jsonify({
         'msg': 'Chapter created successfully', 
         'chapter': {
@@ -174,6 +189,8 @@ def update_chapter(chapter_id):
     chapter.description = data.get('description', chapter.description)
     
     db.session.commit()
+    # Invalidate chapter cache
+    invalidate_cache_pattern(f"get_chapters:*{chapter.subject_id}*")
     return jsonify({
         'msg': 'Chapter updated successfully',
         'chapter': {
@@ -191,8 +208,12 @@ def delete_chapter(chapter_id):
     if not chapter:
         return jsonify({'error': 'Chapter not found'}), 404
 
+    subject_id = chapter.subject_id
     db.session.delete(chapter)
     db.session.commit()
+    # Invalidate chapter and quiz caches
+    invalidate_cache_pattern(f"get_chapters:*{subject_id}*")
+    invalidate_cache_pattern(f"get_quizzes:*{chapter_id}*")
     return jsonify({'message': 'Chapter deleted successfully'}), 200
 
 # Quiz API's
@@ -236,7 +257,8 @@ def create_quiz():
         )
         db.session.add(quiz)
         db.session.commit()
-        
+        # Invalidate quizzes cache for this chapter
+        invalidate_cache_pattern(f"get_quizzes:*{data['chapter_id']}*")
         return jsonify({
             'msg': 'Quiz created successfully', 
             'quiz': {
@@ -287,6 +309,7 @@ def update_quiz(quiz_id):
         if not quiz:
             return jsonify({'msg': 'Quiz not found'}), 404
 
+        chapter_id = quiz.chapter_id
         data = request.get_json()
         
         # Parse datetime strings if they exist
@@ -306,7 +329,8 @@ def update_quiz(quiz_id):
             setattr(quiz, key, value)
             
         db.session.commit()
-        
+        # Invalidate quizzes cache
+        invalidate_cache_pattern(f"get_quizzes:*{chapter_id}*")
         return jsonify({
             'msg': 'Quiz updated successfully',
             'quiz': {
@@ -359,8 +383,12 @@ def delete_quiz(quiz_id):
         if not quiz:
             return jsonify({'msg': 'Quiz not found'}), 404
 
+        chapter_id = quiz.chapter_id
         db.session.delete(quiz)
         db.session.commit()
+        # Invalidate both quizzes and questions cache
+        invalidate_cache_pattern(f"get_quizzes:*{chapter_id}*")
+        invalidate_cache_pattern(f"get_ques:*{quiz_id}*")
         return jsonify({'msg': 'Quiz deleted successfully'}), 200
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
@@ -412,6 +440,9 @@ def add_que(quiz_id):
         )
         db.session.add(que)
         db.session.commit()
+        # Invalidate questions cache and quiz cache (for question count)
+        invalidate_cache_pattern(f"get_ques:*{quiz_id}*")
+        invalidate_cache_pattern(f"get_quizzes:*{quiz.chapter_id}*")
         return jsonify({'msg': 'Question added successfully', 'question': {
             'id': que.id,
             'question': que.question,
@@ -449,8 +480,13 @@ def delete_que(que_id):
         que = Question.query.get(que_id)
         if not que:
             return jsonify({'msg': 'Question not found'}), 404
+        quiz_id = que.quiz_id
+        quiz = Quiz.query.get(quiz_id)
         db.session.delete(que)
         db.session.commit()
+        # Invalidate questions cache and quiz cache (for question count)
+        invalidate_cache_pattern(f"get_ques:*{quiz_id}*")
+        invalidate_cache_pattern(f"get_quizzes:*{quiz.chapter_id}*")
         return jsonify({'msg': 'Question deleted successfully'}), 200
     except Exception as e:
         return jsonify({'msg': str(e)}), 500
@@ -469,6 +505,8 @@ def update_que(que_id):
         que.option4 = data.get('option4', que.option4)
         que.correct_option = data.get('correct_option', que.correct_option)
         db.session.commit()
+        # Invalidate questions cache
+        invalidate_cache_pattern(f"get_ques:*{que.quiz_id}*")
         return jsonify({'msg': 'Question updated successfully', 'question': {
             'id': que.id,
             'question': que.question,
@@ -655,16 +693,14 @@ def get_attempts():
 @app.route('/user/summary', methods=['GET'])
 @jwt_required()
 def get_user_summary():
-    print('entered')
     try:
         current_user = get_jwt_identity()
         user = User.query.filter_by(username=current_user['username']).first()
         
         if not user:
-            print('user not found')
             return jsonify({'msg': 'User not found'}), 404
 
-        # Get all user attempts
+        # Rest of the existing code...
         attempts = Attempt.query.filter_by(user_id=user.id).all()
         
         # Calculate total quizzes attempted

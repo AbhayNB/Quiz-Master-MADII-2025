@@ -14,16 +14,38 @@ const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
     let retries = 0;
     while (retries < maxRetries) {
         try {
-            return await fn();
-        } catch (error) {
-            if (error.response?.status === 429 && retries < maxRetries - 1) {
-                const delay = initialDelay * Math.pow(2, retries);
-                console.log(`Rate limited, retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                retries++;
-                continue;
+            const response = await fn();
+            // Check if response is not ok before trying to parse JSON
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type');
+                // Only try to parse JSON if the content-type is application/json
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    if (response.status === 429) {
+                        if (retries < maxRetries - 1) {
+                            const retryAfter = parseInt(response.headers.get('Retry-After')) || 
+                                             parseInt(errorData.retry_after) || 
+                                             initialDelay * Math.pow(2, retries);
+                            console.log(`Rate limited, retrying in ${retryAfter}ms...`);
+                            await new Promise(resolve => setTimeout(resolve, retryAfter));
+                            retries++;
+                            continue;
+                        }
+                    }
+                    throw new Error(errorData.msg || 'API request failed');
+                } else {
+                    throw new Error('API request failed');
+                }
             }
-            throw error;
+            return response.json();
+        } catch (error) {
+            if (retries === maxRetries - 1) {
+                throw error;
+            }
+            const delay = initialDelay * Math.pow(2, retries);
+            console.log(`Request failed, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retries++;
         }
     }
 };
@@ -31,40 +53,44 @@ const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
 // Subject APIs
 const subjectAPI = {
     getAll: async () => {
-        const response = await fetch('/subjects', {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch('/subjects', {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to fetch subjects');
-        return response.json();
     },
 
     create: async (subject) => {
-        const response = await fetch('/create_subject', {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(subject)
+        return retryWithBackoff(async () => {
+            const response = await fetch('/create_subject', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(subject)
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to create subject');
-        return response.json();
     },
 
     update: async (id, subject) => {
-        const response = await fetch(`/update_subject/${id}`, {
-            method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify(subject)
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/update_subject/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(subject)
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to update subject');
-        return response.json();
     },
 
     delete: async (id) => {
-        const response = await fetch(`/delete_subject/${id}`, {
-            method: 'DELETE',
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/delete_subject/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to delete subject');
-        return response.json();
     }
 };
 
@@ -75,11 +101,7 @@ const chapterAPI = {
             const response = await fetch(`/chapter/${chapterID}`, {
                 headers: getHeaders()
             });
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.msg || 'Failed to get chapter');
-            }
-            return response.json();
+            return response;
         });
     },
     getAll: async (subjectId) => {
@@ -87,41 +109,40 @@ const chapterAPI = {
             const response = await fetch(`/chapters/${subjectId}`, {
                 headers: getHeaders()
             });
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.msg || 'Failed to fetch chapters');
-            }
-            return response.json();
+            return response;
         });
     },
 
     create: async (chapter) => {
-        const response = await fetch('/create_chapter', {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(chapter)
+        return retryWithBackoff(async () => {
+            const response = await fetch('/create_chapter', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(chapter)
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to create chapter');
-        return response.json();
     },
 
     update: async (id, chapter) => {
-        const response = await fetch(`/update_chapter/${id}`, {
-            method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify(chapter)
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/update_chapter/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(chapter)
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to update chapter');
-        return response.json();
     },
 
     delete: async (id) => {
-        const response = await fetch(`/delete_chapter/${id}`, {
-            method: 'DELETE',
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/delete_chapter/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to delete chapter');
-        return response.json();
     }
 };
 
@@ -132,112 +153,102 @@ const quizAPI = {
             const response = await fetch(`/quizzes/${chapterId}`, {
                 headers: getHeaders()
             });
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.msg || 'Failed to fetch quizzes');
-            }
-            return response.json();
+            return response;
         });
     },
 
     create: async (quiz) => {
-        const response = await fetch('/create_quiz', {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(quiz)
+        return retryWithBackoff(async () => {
+            const response = await fetch('/create_quiz', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(quiz)
+            });
+            return response;
         });
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.msg || 'Failed to create quiz');
-        }
-        return response.json();
     },
 
     update: async (id, quiz) => {
-        const response = await fetch(`/update_quiz/${id}`, {
-            method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify(quiz)
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/update_quiz/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(quiz)
+            });
+            return response;
         });
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.msg || 'Failed to update quiz');
-        }
-        return response.json();
     },
 
     delete: async (id) => {
-        const response = await fetch(`/delete_quiz/${id}`, {
-            method: 'DELETE',
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/delete_quiz/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.msg || 'Failed to delete quiz');
-        }
-        return response.json();
     },
 
     getOne: async (id) => {
-        const response = await fetch(`/quiz/${id}`, {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/quiz/${id}`, {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.msg || 'Failed to fetch quiz');
-        }
-        return response.json();
     },
 
     getAttempts: async () => {
-        const response = await fetch('/get_attempts', {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch('/get_attempts', {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.msg || 'Failed to fetch attempts');
-        }
-        return response.json();
     }
 };
 
 // Question APIs
 const questionAPI = {
     getAll: async (quizId) => {
-        const response = await fetch(`/get_ques/${quizId}`, {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/get_ques/${quizId}`, {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to fetch questions');
-        return response.json();
     },
 
     create: async (quizId, question) => {
-        const response = await fetch(`/add_que/${quizId}`, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(question)
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/add_que/${quizId}`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(question)
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to create question');
-        return response.json();
     },
 
     update: async (id, question) => {
-        const response = await fetch(`/update_que/${id}`, {
-            method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify(question)
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/update_que/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(question)
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to update question');
-        return response.json();
     },
 
     delete: async (id) => {
-        const response = await fetch(`/delete_que/${id}`, {
-            method: 'DELETE',
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/delete_que/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to delete question');
-        return response.json();
     }
 };
 
@@ -268,29 +279,32 @@ const authAPI = {
     },
 
     getActiveUsers: async () => {
-        const response = await fetch('/activeusers', {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch('/activeusers', {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to fetch active users');
-        return response.json();
     },
     getAllUsers: async () => {
-        const response = await fetch('/users', {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch('/users', {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to fetch users');
-        return response.json();
     }
 };
 
 // User APIs
 const userAPI = {
     getSummary: async () => {
-        const response = await fetch('/user/summary', {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch('/user/summary', {
+                headers: getHeaders()
+            });
+            return response;
         });
-        if (!response.ok) throw new Error('Failed to fetch user summary');
-        return response.json();
     }
 };
 

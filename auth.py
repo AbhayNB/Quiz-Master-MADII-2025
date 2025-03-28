@@ -1,4 +1,4 @@
-from flask import jsonify, Response, request
+from flask import jsonify, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -87,3 +87,8 @@ def cache_response(timeout=300):
             return response
         return decorated_function
     return decorator
+
+def invalidate_cache_pattern(pattern):
+    """Invalidate all cache keys matching the given pattern"""
+    for key in redis_client.scan_iter(pattern):
+        redis_client.delete(key)
