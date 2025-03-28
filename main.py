@@ -833,6 +833,46 @@ def send_mail():
     job=tasks.send_daily_quiz_reminder.delay()
     return job.state, 200
 
+@app.route('/api/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    current_user_id = get_jwt_identity()['username']
+    user = User.query.filter_by(username=current_user_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    return jsonify({
+        "username": user.username,
+        "email": user.email,
+        "name": user.name,
+        "created_at": user.created_at.isoformat(),
+        "roles": [role.name for role in user.role]
+    })
+
+@app.route('/api/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    current_user_id = get_jwt_identity()['username']
+    user = User.query.filter_by(username=current_user_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    data = request.get_json()
+    
+    if 'name' in data:
+        user.name = data['name']
+    if 'email' in data:
+        if User.query.filter(User.email == data['email'], User.username != current_user_id).first():
+            return jsonify({"msg": "Email already exists"}), 400
+        user.email = data['email']
+    if 'password' in data:
+        user.set_password(data['password'])
+        
+    user.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({"msg": "Profile updated successfully"})
+
 if __name__ == '__main__':
     init_database()
     app.run(debug=True)

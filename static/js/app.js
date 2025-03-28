@@ -9,6 +9,7 @@ import { HomePage } from './pages/home.js';  // Fixed import name
 import { SummaryPage } from './pages/summary.js';
 import { QuizPage } from './pages/quiz.js';
 import { ScorePage } from './pages/score.js';
+import { ProfilePage } from './pages/profile.js';
 
 // auth
 
@@ -290,6 +291,18 @@ const routes = [
   { path: '/quiz/:id', component: QuizPage, props: true },
   { path: '/scores', component: ScorePage },
   { path: '/subscriptions', component: Subscriptions },
+  { 
+    path: '/profile', 
+    component: ProfilePage,
+    beforeEnter: (to, from, next) => {
+      const loggedIn = store.getters.logged;
+      if (loggedIn) {
+        next();
+      } else {
+        next('/login');
+      }
+    }
+  },
   // { 
   //   path: '/admin', 
   //   component: AdminPage,
