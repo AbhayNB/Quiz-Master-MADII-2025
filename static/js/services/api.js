@@ -9,6 +9,25 @@ const getHeaders = () => {
     };
 };
 
+// Helper function to handle retries with exponential backoff
+const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
+    let retries = 0;
+    while (retries < maxRetries) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (error.response?.status === 429 && retries < maxRetries - 1) {
+                const delay = initialDelay * Math.pow(2, retries);
+                console.log(`Rate limited, retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retries++;
+                continue;
+            }
+            throw error;
+        }
+    }
+};
+
 // Subject APIs
 const subjectAPI = {
     getAll: async () => {
@@ -52,18 +71,28 @@ const subjectAPI = {
 // Chapter APIs
 const chapterAPI = {
     getOne: async (chapterID) => {
-        const response = await fetch(`/chapter/${chapterID}`, {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/chapter/${chapterID}`, {
+                headers: getHeaders()
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.msg || 'Failed to get chapter');
+            }
+            return response.json();
         });
-        if (!response.ok) throw new Error(`Failed to get chapter`);
-        return response.json();
     },
     getAll: async (subjectId) => {
-        const response = await fetch(`/chapters/${subjectId}`, {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/chapters/${subjectId}`, {
+                headers: getHeaders()
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.msg || 'Failed to fetch chapters');
+            }
+            return response.json();
         });
-        if (!response.ok) throw new Error('Failed to fetch chapters');
-        return response.json();
     },
 
     create: async (chapter) => {
@@ -99,11 +128,16 @@ const chapterAPI = {
 // Quiz APIs
 const quizAPI = {
     getAll: async (chapterId) => {
-        const response = await fetch(`/quizzes/${chapterId}`, {
-            headers: getHeaders()
+        return retryWithBackoff(async () => {
+            const response = await fetch(`/quizzes/${chapterId}`, {
+                headers: getHeaders()
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.msg || 'Failed to fetch quizzes');
+            }
+            return response.json();
         });
-        if (!response.ok) throw new Error('Failed to fetch quizzes');
-        return response.json();
     },
 
     create: async (quiz) => {

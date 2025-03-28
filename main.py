@@ -2,10 +2,12 @@ from flask import Flask, render_template, request, jsonify, Response
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from models import db, User, Role, Subject, Chapter, Quiz, Question, Attempt, func
 from config import Config
-from auth import role_required
+from auth import role_required, cache_response, limiter
 from flask_mail import Mail
 from workers import celery
-from datetime import datetime  # Add this import
+from datetime import datetime
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import tasks
 
 app = Flask(__name__)
@@ -16,7 +18,15 @@ db.init_app(app)
 jwt = JWTManager(app)
 mail = Mail(app)
 mail.init_app(app)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    storage_uri="redis://localhost:6379/3",
+    default_limits=["200 per day", "50 per hour", "1 per second"]
+)
+
 # Configure Celery
 celery.conf.update(app.config)
 celery.conf.update(
@@ -72,6 +82,7 @@ def create_subject():
     return jsonify({'msg': 'Subject created successfully', 'subject': subject.to_dict()})
 
 @app.route('/subjects', methods=['GET'])
+@cache_response(timeout=600)  # Cache for 10 minutes
 def get_subjects():
     try:
         subjects = Subject.query.all()
@@ -109,6 +120,8 @@ def update_subject(subject_id):
 
 # Chapter API's
 @app.route('/chapters/<int:subject_id>', methods=['GET'])
+@cache_response(timeout=300)  # Cache for 5 minutes
+@limiter.limit("60 per minute")  # More lenient limit for chapters
 def get_chapters(subject_id):
     try:
         chapters = Chapter.query.filter_by(subject_id=subject_id).all()
@@ -184,6 +197,7 @@ def delete_chapter(chapter_id):
 
 # Quiz API's
 @app.route('/create_quiz', methods=['POST'])
+@limiter.limit("20/hour")  # Limit quiz creation
 def create_quiz():
     try:
         data = request.get_json()
@@ -242,6 +256,8 @@ def create_quiz():
         return jsonify({'msg': str(e)}), 500
 
 @app.route('/quizzes/<int:chapter_id>', methods=['GET'])
+@cache_response(timeout=300)  # Cache for 5 minutes
+@limiter.limit("60 per minute")  # More lenient limit for quizzes
 def get_quizzes(chapter_id):
     try:
         quizzes = Quiz.query.filter_by(chapter_id=chapter_id).all()
@@ -378,6 +394,7 @@ def get_single_quiz(quiz_id):
 # Questions API's
 
 @app.route('/add_que/<int:quiz_id>', methods=['POST'])
+@limiter.limit("100/hour")  # Limit question creation
 def add_que(quiz_id):
     try:
         data = request.get_json()
@@ -409,6 +426,7 @@ def add_que(quiz_id):
         return jsonify({'msg': str(e)}), 500
 
 @app.route('/get_ques/<int:quiz_id>', methods=['GET'])
+@cache_response(timeout=300)  # Cache for 5 minutes
 def get_ques(quiz_id):
     try:
         questions = Question.query.filter_by(quiz_id=quiz_id).all()
@@ -466,7 +484,7 @@ def update_que(que_id):
 
 # User API's
 
-@app.route('/activeusers', methods=['GET'])
+@app.route('/active_users', methods=['GET'])
 def active_users():
      active_users=db.session.query(func.count(User.id)).scalar()
      print(active_users)
@@ -532,6 +550,7 @@ def register():
 # Quiz Attempt API
 @app.route('/submit_quiz', methods=['POST'])
 @jwt_required()
+@limiter.limit("5/minute")  # Limit submissions to 5 per minute per user
 def submit_quiz():
     try:
         current_user = get_jwt_identity()

@@ -79,7 +79,8 @@ export const QuizCard = {
       if (!this.quiz.start_time) return false;
       const now = new Date();
       const start = new Date(this.quiz.start_time);
-      return start > now;
+      const end = this.quiz.end_time ? new Date(this.quiz.end_time) : null;
+      return start > now && (!end || end > now);
     },
     startTimeFormatted() {
       if (!this.quiz.start_time) return '';

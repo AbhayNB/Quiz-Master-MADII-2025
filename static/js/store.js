@@ -10,12 +10,7 @@ export const store = Vuex.createStore({
             questions: {}, // Organized by quizId
             users: [],
             activeUsers: 0,
-            logged: false,
-            analytics: {
-                dailyActivity: [],
-                userSummary: null,
-                quizHistory: []
-            }
+            logged: false
         }
     },
     mutations: {
@@ -111,16 +106,6 @@ export const store = Vuex.createStore({
         },
         setLogged(state, status) {
             state.logged = status;
-        },
-        // New analytics mutations
-        setDailyActivity(state, data) {
-            state.analytics.dailyActivity = data;
-        },
-        setUserSummary(state, data) {
-            state.analytics.userSummary = data;
-        },
-        setQuizHistory(state, data) {
-            state.analytics.quizHistory = data;
         }
     },
     actions: {
@@ -132,11 +117,12 @@ export const store = Vuex.createStore({
         // Subject actions
         async fetchSubjects({ commit }) {
             try {
-                const response = await api.subject.getAll();
-                if (response && response.subjects) {
-                    commit('setSubjects', response.subjects);
+                const response = await fetch('/subjects');
+                const data = await response.json();
+                if (data && data.subjects) {
+                    commit('setSubjects', data.subjects);
                 } else {
-                    console.error('Invalid response format from fetchSubjects:', response);
+                    console.error('Invalid response format from fetchSubjects:', data);
                     throw new Error('Invalid response format from server');
                 }
             } catch (error) {
@@ -177,7 +163,8 @@ export const store = Vuex.createStore({
         // Chapter actions
         async fetchChapters({ commit }, subjectId) {
             try {
-                const data = await api.chapter.getAll(subjectId);
+                const response = await fetch(`/chapters/${subjectId}`);
+                const data = await response.json();
                 commit('setChapters', { subjectId, chapters: data.chapters });
             } catch (error) {
                 console.error('Error fetching chapters:', error);
@@ -223,7 +210,8 @@ export const store = Vuex.createStore({
         // Quiz actions
         async fetchQuizzes({ commit }, chapterId) {
             try {
-                const data = await api.quiz.getAll(chapterId);
+                const response = await fetch(`/quizzes/${chapterId}`);
+                const data = await response.json();
                 commit('setQuizzes', { chapterId, quizzes: data.quizzes });
             } catch (error) {
                 console.error('Error fetching quizzes:', error);
@@ -340,7 +328,6 @@ export const store = Vuex.createStore({
         async fetchQuizHistory({ commit }) {
             try {
                 const response = await api.quiz.getAttempts();
-                commit('setQuizHistory', response);
                 return response;
             } catch (error) {
                 console.error('Error fetching quiz attempts:', error);
@@ -350,7 +337,6 @@ export const store = Vuex.createStore({
         async fetchUserSummary({ commit }) {
             try {
                 const response = await api.user.getSummary();
-                commit('setUserSummary', response);
                 return response;
             } catch (error) {
                 console.error('Error fetching user summary:', error);
@@ -361,8 +347,9 @@ export const store = Vuex.createStore({
         // User actions
         async fetchActiveUsers({ commit }) {
             try {
-                const data = await api.auth.getActiveUsers();
-                commit('setActiveUsers', data.active_users);
+                const response = await fetch('/active_users');
+                const data = await response.json();
+                commit('setActiveUsers', data.count);
             } catch (error) {
                 console.error('Error fetching active users:', error);
                 throw error;
@@ -376,10 +363,6 @@ export const store = Vuex.createStore({
         quizzes: state => chapterId => state.quizzes[chapterId] || [],
         questions: state => quizId => state.questions[quizId] || [],
         activeUsers: state => state.activeUsers,
-        logged: state => state.logged,
-        // New analytics getters
-        dailyActivity: state => state.analytics.dailyActivity,
-        userSummary: state => state.analytics.userSummary,
-        quizHistory: state => state.analytics.quizHistory
+        logged: state => state.logged
     }
 });
