@@ -117,12 +117,11 @@ export const store = Vuex.createStore({
         // Subject actions
         async fetchSubjects({ commit }) {
             try {
-                const response = await fetch('/subjects');
-                const data = await response.json();
-                if (data && data.subjects) {
-                    commit('setSubjects', data.subjects);
+                const response = await api.subject.getAll();
+                if (response && response.subjects) {
+                    commit('setSubjects', response.subjects);
                 } else {
-                    console.error('Invalid response format from fetchSubjects:', data);
+                    console.error('Invalid response format from fetchSubjects:', response);
                     throw new Error('Invalid response format from server');
                 }
             } catch (error) {
@@ -163,8 +162,7 @@ export const store = Vuex.createStore({
         // Chapter actions
         async fetchChapters({ commit }, subjectId) {
             try {
-                const response = await fetch(`/chapters/${subjectId}`);
-                const data = await response.json();
+                const data = await api.chapter.getAll(subjectId);
                 commit('setChapters', { subjectId, chapters: data.chapters });
             } catch (error) {
                 console.error('Error fetching chapters:', error);
@@ -210,8 +208,7 @@ export const store = Vuex.createStore({
         // Quiz actions
         async fetchQuizzes({ commit }, chapterId) {
             try {
-                const response = await fetch(`/quizzes/${chapterId}`);
-                const data = await response.json();
+                const data = await api.quiz.getAll(chapterId);
                 commit('setQuizzes', { chapterId, quizzes: data.quizzes });
             } catch (error) {
                 console.error('Error fetching quizzes:', error);
@@ -347,9 +344,8 @@ export const store = Vuex.createStore({
         // User actions
         async fetchActiveUsers({ commit }) {
             try {
-                const response = await fetch('/active_users');
-                const data = await response.json();
-                commit('setActiveUsers', data.count);
+                const data = await api.auth.getActiveUsers();
+                commit('setActiveUsers', data.active_users);
             } catch (error) {
                 console.error('Error fetching active users:', error);
                 throw error;

@@ -280,7 +280,7 @@ const authAPI = {
 
     getActiveUsers: async () => {
         return retryWithBackoff(async () => {
-            const response = await fetch('/activeusers', {
+            const response = await fetch('/active_users', {
                 headers: getHeaders()
             });
             return response;

@@ -79,12 +79,22 @@ export const QuizCard = {
       if (!this.quiz.start_time) return false;
       const now = new Date();
       const start = new Date(this.quiz.start_time);
-      const end = this.quiz.end_time ? new Date(this.quiz.end_time) : null;
-      return start > now && (!end || end > now);
+      return start > now;
+    },
+    isExpired() {
+      if (!this.quiz.end_time) return false;
+      const now = new Date();
+      const end = new Date(this.quiz.end_time);
+      return end < now;
     },
     startTimeFormatted() {
       if (!this.quiz.start_time) return '';
       return new Date(this.quiz.start_time).toLocaleString();
+    },
+    buttonState() {
+      if (this.isExpired) return { class: 'btn-secondary', text: 'Quiz Ended', icon: 'bi-lock' };
+      if (this.isUpcoming) return { class: 'btn-secondary', text: 'Coming Soon', icon: 'bi-clock-history' };
+      return { class: 'btn-primary', text: 'Start Quiz', icon: 'bi-play-fill' };
     }
   },
   template: `
@@ -110,18 +120,18 @@ export const QuizCard = {
             <i class="bi bi-journal me-1"></i> {{ quiz.chapter }}
           </span>
         </div>
-        <div v-if="isUpcoming" class="text-muted small mb-2">
+        <div v-if="quiz.start_time" class="text-muted small mb-2">
           <i class="bi bi-calendar-event me-1"></i>
           Available from: {{ startTimeFormatted }}
         </div>
         <button 
           class="btn w-100" 
-          :class="isUpcoming ? 'btn-secondary' : 'btn-primary'"
-          :disabled="isUpcoming"
+          :class="buttonState.class"
+          :disabled="isUpcoming || isExpired"
           @click="$router.push('/quiz/' + quiz.id)"
         >
-          <i class="bi" :class="isUpcoming ? 'bi-clock-history' : 'bi-play-fill'"></i>
-          {{ isUpcoming ? 'Coming Soon' : 'Start Quiz' }}
+          <i class="bi" :class="buttonState.icon"></i>
+          {{ buttonState.text }}
         </button>
       </div>
     </div>

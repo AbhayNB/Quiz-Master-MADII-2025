@@ -51,7 +51,7 @@ celery = make_celery(flask_app)
 celery.conf.beat_schedule = {
     'daily-quiz-reminder': {
         'task': 'tasks.send_daily_quiz_reminder',
-        'schedule': crontab(hour=18, minute=15),  # Will run at 10:05 PM IST
+        'schedule': crontab(hour=17, minute=38),  # Will run at 10:05 PM IST
         'options': {'expires': 3600}
     },
     'monthly-performance-report': {
